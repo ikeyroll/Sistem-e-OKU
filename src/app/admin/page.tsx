@@ -20,7 +20,7 @@ import { exportBySession } from '@/lib/csvExport';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getApplications, approveApplication as approveApp, rejectApplication as rejectApp, markAsReady, markAsCollected, updateApplication, deleteApplication } from '@/lib/api/applications';
 import MapPicker from '@/components/MapPicker';
-import { getIssuedCount, getSessionCapacity, setSessionCapacity } from '@/lib/api/session';
+import { getIssuedCount, getSessionCapacity, setSessionCapacity, getSessionPrefix, setSessionConfig } from '@/lib/api/session';
 import type { Application } from '@/lib/supabase';
 
 // No mock data - using Supabase only
@@ -31,11 +31,15 @@ export default function AdminPanel() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [permohonanFilter, setPermohonanFilter] = useState('all');
+  const [peringkatFilter, setPeringkatFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [sessionFilter, setSessionFilter] = useState('all');
-  // Session capacity management state
+  const [bulanMohonFilter, setBulanMohonFilter] = useState('all');
+  const [tahunMohonFilter, setTahunMohonFilter] = useState('all');
+  // Serial Number Configuration state
   const currentYear = new Date().getFullYear();
-  const [selectedSessionYear, setSelectedSessionYear] = useState<number>(currentYear);
+  const [serialPrefix, setSerialPrefix] = useState<string>('MPHS');
+  const [serialYear, setSerialYear] = useState<string>(currentYear.toString());
   const [sessionCapacity, setSessionCapacityState] = useState<number>(350);
   const [issuedCount, setIssuedCountState] = useState<number>(0);
   const [sessionLoading, setSessionLoading] = useState<boolean>(false);
@@ -162,6 +166,19 @@ export default function AdminPanel() {
       setLoading(true);
       const data = await getApplications();
       setApplications(data);
+      
+      // Load session configuration (capacity and prefix)
+      const yearToUse = parseInt(serialYear) || currentYear;
+      const [cap, issued, prefix] = await Promise.all([
+        getSessionCapacity(yearToUse),
+        getIssuedCount(yearToUse),
+        getSessionPrefix(yearToUse),
+      ]);
+      setSessionCapacityState(cap);
+      setIssuedCountState(issued);
+      setCapacityInput(String(cap));
+      setSerialPrefix(prefix);
+      
       toast.success(`Loaded ${data.length} applications from database`);
     } catch (error) {
       console.error('Error loading applications:', error);
@@ -347,17 +364,9 @@ export default function AdminPanel() {
 
   const getSessionString = (year: number) => `${year}/${year + 2}`;
 
-  // Load session capacity/issued when selected year changes
+  // Load session capacity/issued when serial year changes
   useEffect(() => {
-    let yearToUse = selectedSessionYear;
-    // If sessions exist, map "YYYY/YYYY+2" to first year
-    const sessions = getUniqueSessions();
-    if (sessions.length > 0) {
-      const firstYear = parseInt(sessions[0].split('/')[0]);
-      if (!isNaN(firstYear)) {
-        yearToUse = selectedSessionYear || firstYear;
-      }
-    }
+    const yearToUse = parseInt(serialYear) || currentYear;
     setSessionLoading(true);
     Promise.all([getSessionCapacity(yearToUse), getIssuedCount(yearToUse)])
       .then(([cap, issued]) => {
@@ -367,7 +376,7 @@ export default function AdminPanel() {
       })
       .finally(() => setSessionLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSessionYear, applications.length]);
+  }, [serialYear, applications.length]);
 
   // Filter applications
   const filteredApps = applications.filter((app) => {
@@ -377,16 +386,37 @@ export default function AdminPanel() {
       app.pemohon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.pemohon.ic.includes(searchQuery);
     
-    // Handle both old and new status values
+    // Permohonan filter (Baharu/Pembaharuan)
+    const matchesPermohonan = permohonanFilter === 'all' || app.application_type === permohonanFilter;
+    
+    // Peringkat filter (specific status - same as old Status filter)
     const normalizedStatus = app.status === 'Tidak Berjaya' ? 'Tidak Lengkap' : app.status;
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'Tidak Lengkap' && (normalizedStatus === 'Tidak Lengkap' || app.status === 'Tidak Berjaya')) ||
-                         normalizedStatus === statusFilter;
+    const matchesPeringkat = peringkatFilter === 'all' || 
+                            (peringkatFilter === 'Tidak Lengkap' && (normalizedStatus === 'Tidak Lengkap' || app.status === 'Tidak Berjaya')) ||
+                            normalizedStatus === peringkatFilter;
     
-    const appSession = getSession(app.approved_date || null);
-    const matchesSession = sessionFilter === 'all' || appSession === sessionFilter;
+    // Status filter (Aktif/Tidak Aktif only)
+    let matchesStatus = true;
+    if (statusFilter !== 'all') {
+      const isAktif = (app.status === 'Diluluskan' || app.status === 'Sedia Diambil' || app.status === 'Telah Diambil') && 
+                     (!app.expiry_date || new Date(app.expiry_date) >= new Date());
+      if (statusFilter === 'Aktif') {
+        matchesStatus = isAktif;
+      } else if (statusFilter === 'Tidak Aktif') {
+        matchesStatus = !isAktif;
+      }
+    }
     
-    return matchesSearch && matchesStatus && matchesSession;
+    // Bulan Mohon filter
+    const submittedDate = new Date(app.submitted_date);
+    const bulanMohon = submittedDate.getMonth() + 1; // 1-12
+    const matchesBulanMohon = bulanMohonFilter === 'all' || parseInt(bulanMohonFilter) === bulanMohon;
+    
+    // Tahun Mohon filter
+    const tahunMohon = submittedDate.getFullYear();
+    const matchesTahunMohon = tahunMohonFilter === 'all' || parseInt(tahunMohonFilter) === tahunMohon;
+    
+    return matchesSearch && matchesPermohonan && matchesPeringkat && matchesStatus && matchesBulanMohon && matchesTahunMohon;
   });
 
   const handleApprove = async () => {
@@ -443,16 +473,15 @@ export default function AdminPanel() {
   };
 
   const handleExportCSV = () => {
-    // Use real applications if available, otherwise use dummy data
-    let appsToExport: Application[] = applications.length > 0 ? applications : dummyApps as Application[];
-    
-    if (appsToExport.length === 0) {
+    // Export based on current filters (filteredApps)
+    if (filteredApps.length === 0) {
       toast.error('Tiada data untuk dimuat turun');
       return;
     }
 
-    exportBySession(appsToExport, csvSessionFilter);
-    toast.success(`CSV berjaya dimuat turun${csvSessionFilter !== 'all' ? ` (Sesi ${csvSessionFilter})` : ''}`);
+    // Use filtered applications
+    exportBySession(filteredApps, 'all');
+    toast.success(`CSV berjaya dimuat turun (${filteredApps.length} rekod)`);
   };
 
   const handleMarkReady = async (id: string) => {
@@ -624,14 +653,19 @@ export default function AdminPanel() {
           {/* Header */}
           <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold mb-2">{t('admin.title')}</h1>
+              <h1 className="text-3xl font-bold mb-2">{isAdminBoss ? (language === 'en' ? 'Super Admin' : 'Super Admin') : t('admin.title')}</h1>
               <p className="text-muted-foreground">{t('admin.subtitle')}</p>
             </div>
             <div className="flex gap-2">
               {isAdminBoss && (
-                <Button variant="outline" onClick={() => router.push('/admin/manage-admins')}>
-                  {language === 'en' ? 'Manage Admins' : 'Urus Admin'}
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => router.push('/admin/manage-admins')}>
+                    {language === 'en' ? 'Manage Admins' : 'Urus Admin'}
+                  </Button>
+                  <Button variant="outline" onClick={() => router.push('/admin/manage-footer')}>
+                    {language === 'en' ? 'Footer' : 'Footer'}
+                  </Button>
+                </>
               )}
               <Button variant="outline" onClick={handleLogout}>
                 {t('admin.logout')}
@@ -639,238 +673,133 @@ export default function AdminPanel() {
             </div>
           </div>
 
-          {/* Export CSV - MOVED TO TOP */}
+          {/* Carian & Tapisan - MOVED TO TOP */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>{t('admin.export')}</CardTitle>
-              <CardDescription>{language === 'en' ? 'Select session to export' : 'Pilih sesi untuk eksport'}</CardDescription>
+              <CardTitle>{language === 'en' ? 'Search & Filters' : 'Carian & Tapisan'}</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label className="mb-2 block">{language === 'en' ? 'Session' : 'Sesi'}</Label>
-                  <Select value={csvSessionFilter} onValueChange={setCsvSessionFilter}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{language === 'en' ? 'All Sessions' : 'Semua Sesi'}</SelectItem>
-                      {getUniqueSessions().map(session => (
-                        <SelectItem key={session} value={session}>
-                          Sesi {session}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-end">
-                  <Button onClick={handleExportCSV} className="w-full">
-                    <Download className="w-4 h-4 mr-2" />
-                    {t('admin.download')}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* KML Download Section */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Map className="h-5 w-5" />
-                {language === 'en' ? 'Download Interactive Map (KML)' : 'Muat Turun Peta Interaktif (KML)'}
-              </CardTitle>
-              <CardDescription>
-                {language === 'en' 
-                  ? 'Download successful applications map data in KML format (same as dashboard interactive map)' 
-                  : 'Muat turun data peta permohonan berjaya dalam format KML (sama seperti peta interaktif dashboard)'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <Label className="mb-2 block">{language === 'en' ? 'Session' : 'Sesi'}</Label>
-                  <Select value={kmlSession} onValueChange={setKmlSession}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{language === 'en' ? 'All Sessions' : 'Semua Sesi'}</SelectItem>
-                      {getKMLSessions().map(session => (
-                        <SelectItem key={session} value={session}>
-                          Sesi {session}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="mb-2 block">{language === 'en' ? 'Mukim' : 'Mukim'}</Label>
-                  <Select value={kmlMukim} onValueChange={setKmlMukim}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{language === 'en' ? 'All Mukims' : 'Semua Mukim'}</SelectItem>
-                      {getUniqueMukims().map(mukim => (
-                        <SelectItem key={mukim} value={mukim}>
-                          {mukim}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-end">
-                  <Button onClick={handleKMLDownload} className="w-full">
-                    <Download className="h-4 w-4 mr-2" />
-                    {language === 'en' ? 'Download KML' : 'Muat Turun KML'}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Session Number Series Management */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>{language === 'en' ? 'Session Number Series Management' : 'Urusan Siri Nombor Mengikut Sesi'}</CardTitle>
-              <CardDescription>
-                {language === 'en'
-                  ? 'Set the maximum serial capacity per session. Existing issued serials remain unchanged.'
-                  : 'Tetapkan kapasiti maksimum siri nombor bagi setiap sesi. Nombor siri yang telah dikeluarkan kekal.'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
-                <div>
-                  <Label className="mb-2 block">{language === 'en' ? 'Session' : 'Sesi'}</Label>
-                  <Select
-                    value={getSessionString(selectedSessionYear)}
-                    onValueChange={(val) => {
-                      const yr = parseInt(val.split('/')[0]);
-                      if (!isNaN(yr)) setSelectedSessionYear(yr);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getUniqueSessions().map(session => (
-                        <SelectItem key={session} value={session}>{session}</SelectItem>
-                      ))}
-                      {!getUniqueSessions().includes(getSessionString(selectedSessionYear)) && (
-                        <SelectItem value={getSessionString(selectedSessionYear)}>
-                          {getSessionString(selectedSessionYear)}
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="mb-2 block">{language === 'en' ? 'Issued' : 'Telah Dikeluarkan'}</Label>
-                  <Input value={issuedCount} disabled className="bg-muted" />
-                </div>
-                <div>
-                  <Label className="mb-2 block">{language === 'en' ? 'Capacity (Max)' : 'Kapasiti (Maks)'} </Label>
+              {/* Search Bar */}
+              <div className="mb-4">
+                <Label className="mb-2 block">{language === 'en' ? 'Search (No. Ref, No. Siri, IC, Name)' : 'Cari (No Rujukan, No Siri, IC, Nama)'}</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    type="number"
-                    value={capacityInput}
-                    onChange={(e) => setCapacityInput(e.target.value)}
-                    min={issuedCount}
+                    placeholder={t('admin.searchPlaceholder')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 w-full"
                   />
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    disabled={sessionLoading || !capacityInput || isNaN(parseInt(capacityInput)) || parseInt(capacityInput) < issuedCount}
-                    onClick={async () => {
-                      try {
-                        setSessionLoading(true);
-                        const nextCap = parseInt(capacityInput);
-                        await setSessionCapacity(selectedSessionYear, nextCap);
-                        const [cap, issued] = await Promise.all([
-                          getSessionCapacity(selectedSessionYear),
-                          getIssuedCount(selectedSessionYear),
-                        ]);
-                        setSessionCapacityState(cap);
-                        setIssuedCountState(issued);
-                        setCapacityInput(String(cap));
-                        toast.success(language === 'en' ? 'Capacity updated' : 'Kapasiti dikemaskini');
-                      } catch (e: any) {
-                        toast.error(e.message || (language === 'en' ? 'Failed to update capacity' : 'Gagal kemaskini kapasiti'));
-                      } finally {
-                        setSessionLoading(false);
-                      }
-                    }}
-                  >
-                    {sessionLoading ? (language === 'en' ? 'Saving...' : 'Menyimpan...') : (language === 'en' ? 'Update Capacity' : 'Kemaskini Kapasiti')}
-                  </Button>
-                </div>
               </div>
-              <div className="mt-3 text-sm text-muted-foreground">
-                {language === 'en'
-                  ? 'Note: Increasing capacity allows more future serials. Reducing capacity will not delete existing serials; it only limits new serials.'
-                  : 'Nota: Menaikkan kapasiti membenarkan lebih banyak siri pada masa hadapan. Mengurangkan kapasiti tidak memadam siri sedia ada; ia hanya menghadkan siri baharu.'}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Search & Filters */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>{t('admin.searchFilter')}</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-x-2 gap-y-3">
-                <div className="md:col-span-2">
-                  <Label className="mb-2 block">{t('admin.searchLabel')}</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder={t('admin.searchPlaceholder')}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 w-full"
-                    />
+              
+              {/* Tapisan Section */}
+              <div>
+                <Label className="mb-2 block font-semibold">{language === 'en' ? 'Filters' : 'Tapisan'}</Label>
+                <div className="flex flex-wrap items-end">
+                  {/* Permohonan */}
+                  <div className="flex-1 min-w-[140px]">
+                    <Label className="mb-2 block">{language === 'en' ? 'Application' : 'Permohonan'}</Label>
+                    <Select value={permohonanFilter} onValueChange={setPermohonanFilter}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{language === 'en' ? 'All' : 'Semua'}</SelectItem>
+                        <SelectItem value="Baharu">{language === 'en' ? 'New' : 'Baharu'}</SelectItem>
+                        <SelectItem value="Pembaharuan">{language === 'en' ? 'Renewal' : 'Pembaharuan'}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Peringkat */}
+                  <div className="flex-1 min-w-[140px]">
+                    <Label className="mb-2 block">{language === 'en' ? 'Stage' : 'Peringkat'}</Label>
+                    <Select value={peringkatFilter} onValueChange={setPeringkatFilter}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{language === 'en' ? 'All' : 'Semua'}</SelectItem>
+                        <SelectItem value="Dalam Proses">{t('status.dalamProses')}</SelectItem>
+                        <SelectItem value="Diluluskan">{t('status.diluluskan')}</SelectItem>
+                        <SelectItem value="Sedia Diambil">{t('status.sediaDiambil')}</SelectItem>
+                        <SelectItem value="Telah Diambil">{t('status.telahDiambil')}</SelectItem>
+                        <SelectItem value="Tidak Lengkap">Tidak Lengkap</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Status */}
+                  <div className="flex-1 min-w-[140px]">
+                    <Label className="mb-2 block">{language === 'en' ? 'Status' : 'Status'}</Label>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{language === 'en' ? 'All' : 'Semua'}</SelectItem>
+                        <SelectItem value="Aktif">{language === 'en' ? 'Active' : 'Aktif'}</SelectItem>
+                        <SelectItem value="Tidak Aktif">{language === 'en' ? 'Inactive' : 'Tidak Aktif'}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Bulan Mohon */}
+                  <div className="flex-1 min-w-[140px]">
+                    <Label className="mb-2 block">{language === 'en' ? 'Month Applied' : 'Bulan Mohon'}</Label>
+                    <Select value={bulanMohonFilter} onValueChange={setBulanMohonFilter}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{language === 'en' ? 'All' : 'Semua'}</SelectItem>
+                        <SelectItem value="1">Januari</SelectItem>
+                        <SelectItem value="2">Februari</SelectItem>
+                        <SelectItem value="3">Mac</SelectItem>
+                        <SelectItem value="4">April</SelectItem>
+                        <SelectItem value="5">Mei</SelectItem>
+                        <SelectItem value="6">Jun</SelectItem>
+                        <SelectItem value="7">Julai</SelectItem>
+                        <SelectItem value="8">Ogos</SelectItem>
+                        <SelectItem value="9">September</SelectItem>
+                        <SelectItem value="10">Oktober</SelectItem>
+                        <SelectItem value="11">November</SelectItem>
+                        <SelectItem value="12">Disember</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Tahun Mohon */}
+                  <div className="flex-1 min-w-[140px]">
+                    <Label className="mb-2 block">{language === 'en' ? 'Year Applied' : 'Tahun Mohon'}</Label>
+                    <Select value={tahunMohonFilter} onValueChange={setTahunMohonFilter}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{language === 'en' ? 'All' : 'Semua'}</SelectItem>
+                        {Array.from(new Set(applications.map(app => new Date(app.submitted_date).getFullYear()))).sort((a, b) => b - a).map(year => (
+                          <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Muat Turun CSV Button - Inline */}
+                  <div>
+                    <Button onClick={handleExportCSV} className="h-9">
+                      <Download className="w-4 h-4 mr-2" />
+                      {language === 'en' ? 'Download CSV' : 'Muat Turun CSV'} ({filteredApps.length})
+                    </Button>
                   </div>
                 </div>
-                <div>
-                  <Label className="mb-2 block">{t('admin.status')}</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t('admin.all')}</SelectItem>
-                      <SelectItem value="Dalam Proses">{t('status.dalamProses')}</SelectItem>
-                      <SelectItem value="Diluluskan">{t('status.diluluskan')}</SelectItem>
-                      <SelectItem value="Sedia Diambil">{t('status.sediaDiambil')}</SelectItem>
-                      <SelectItem value="Telah Diambil">{t('status.telahDiambil')}</SelectItem>
-                      <SelectItem value="Tidak Lengkap">Tidak Lengkap</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="mb-2 block">{language === 'en' ? 'Session' : 'Sesi'}</Label>
-                  <Select value={sessionFilter} onValueChange={setSessionFilter}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{language === 'en' ? 'All' : 'Semua'}</SelectItem>
-                      {getUniqueSessions().map(session => (
-                        <SelectItem key={session} value={session}>
-                          {session}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Applications Table */}
-          <Card>
+          {/* Applications Table - MOVED HERE */}
+          <Card className="mb-6">
             <CardHeader>
               <CardTitle>{t('admin.applicationList')} ({filteredApps.length})</CardTitle>
             </CardHeader>
@@ -902,7 +831,7 @@ export default function AdminPanel() {
                     <TableBody>
                       {filteredApps.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                           {t('admin.noApplications')}
                         </TableCell>
                       </TableRow>
@@ -913,16 +842,12 @@ export default function AdminPanel() {
                         const bulanMohon = monthNames[submittedDate.getMonth()];
                         const tahunMohon = submittedDate.getFullYear();
                         
-                        // Determine Status (Aktif/Tidak Aktif)
                         const isAktif = (app.status === 'Diluluskan' || app.status === 'Sedia Diambil' || app.status === 'Telah Diambil') && 
                                        (!app.expiry_date || new Date(app.expiry_date) >= new Date());
                         
-                        // Generate No. Id in format OKU0000001
-                        const noId = `OKU${String(index + 1).padStart(7, '0')}`;
-                        
                         return (
                         <TableRow key={app.id}>
-                          <TableCell className="font-medium whitespace-nowrap font-mono">{noId}</TableCell>
+                          <TableCell className="font-medium whitespace-nowrap font-mono">{app.ref_no}</TableCell>
                           <TableCell className="whitespace-nowrap">
                             {app.no_siri ? (
                               <span className="font-mono text-sm bg-green-50 text-green-700 px-2 py-1 rounded">
@@ -971,7 +896,6 @@ export default function AdminPanel() {
                                   </Button>
                                 </>
                               )}
-                              
                               {app.status === 'Diluluskan' && (
                                 <Button
                                   size="sm"
@@ -979,10 +903,9 @@ export default function AdminPanel() {
                                   className="text-blue-600 hover:text-blue-700"
                                   onClick={() => handleMarkReady(app.id)}
                                 >
-                                  📦 Sedia Diambil
+                                  <CheckCircle className="w-4 h-4" />
                                 </Button>
                               )}
-                              
                               {app.status === 'Sedia Diambil' && (
                                 <Button
                                   size="sm"
@@ -990,29 +913,37 @@ export default function AdminPanel() {
                                   className="text-purple-600 hover:text-purple-700"
                                   onClick={() => handleMarkCollected(app.id)}
                                 >
-                                  ✅ Selesai
+                                  <CheckCircle className="w-4 h-4" />
                                 </Button>
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="whitespace-nowrap">{getStatusBadge(app.status)}</TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {isAktif ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Aktif
-                              </span>
+                          <TableCell>
+                            {app.status === 'Dalam Proses' ? (
+                              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Dalam Proses</Badge>
+                            ) : app.status === 'Diluluskan' ? (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Diluluskan</Badge>
+                            ) : app.status === 'Sedia Diambil' ? (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Sedia Diambil</Badge>
+                            ) : app.status === 'Telah Diambil' ? (
+                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Telah Diambil</Badge>
                             ) : (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                Tidak Aktif
-                              </span>
+                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Tidak Lengkap</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isAktif ? (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Aktif</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">Tidak Aktif</Badge>
                             )}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">{bulanMohon}</TableCell>
                           <TableCell className="whitespace-nowrap">{tahunMohon}</TableCell>
                           <TableCell className="min-w-[200px]">{app.pemohon.name}</TableCell>
-                          <TableCell className="font-mono text-sm whitespace-nowrap">{app.pemohon.ic}</TableCell>
+                          <TableCell className="whitespace-nowrap font-mono text-sm">{app.pemohon.ic}</TableCell>
                         </TableRow>
-                      );
+                        );
                       })
                     )}
                     </TableBody>
@@ -1021,8 +952,135 @@ export default function AdminPanel() {
               )}
             </CardContent>
           </Card>
+
+          {/* Serial Number Configuration Management */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>{language === 'en' ? 'Serial Number Configuration' : 'Urusan Siri Nombor Mengikut Sesi'}</CardTitle>
+              <CardDescription>
+                {language === 'en'
+                  ? 'Configure serial number prefix, year, and capacity. Format: PREFIX/YEAR/NUMBER'
+                  : 'Konfigurasi awalan siri nombor, tahun, dan kapasiti. Format: AWALAN/TAHUN/NOMBOR'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
+                <div>
+                  <Label className="mb-2 block">{language === 'en' ? 'Prefix' : 'Awalan'}</Label>
+                  <Input
+                    value={serialPrefix}
+                    onChange={(e) => setSerialPrefix(e.target.value.toUpperCase())}
+                    placeholder="MPHS"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-2 block">{language === 'en' ? 'Year' : 'Tahun'}</Label>
+                  <Input
+                    value={serialYear}
+                    onChange={(e) => setSerialYear(e.target.value)}
+                    placeholder="2025"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-2 block">{language === 'en' ? 'Issued' : 'Telah Dikeluarkan'}</Label>
+                  <Input value={issuedCount} disabled className="bg-muted" />
+                </div>
+                <div>
+                  <Label className="mb-2 block">{language === 'en' ? 'Capacity (Max)' : 'Kapasiti (Maks)'}</Label>
+                  <Input
+                    type="number"
+                    value={capacityInput}
+                    onChange={(e) => setCapacityInput(e.target.value)}
+                    min={issuedCount}
+                  />
+                </div>
+                <div>
+                  <Button
+                    disabled={sessionLoading || !capacityInput || isNaN(parseInt(capacityInput)) || parseInt(capacityInput) < issuedCount || !serialPrefix.trim()}
+                    onClick={async () => {
+                      try {
+                        setSessionLoading(true);
+                        const nextCap = parseInt(capacityInput);
+                        const yearToUse = parseInt(serialYear) || currentYear;
+                        // Save both capacity and prefix
+                        await setSessionConfig(yearToUse, nextCap, serialPrefix);
+                        const [cap, issued, prefix] = await Promise.all([
+                          getSessionCapacity(yearToUse),
+                          getIssuedCount(yearToUse),
+                          getSessionPrefix(yearToUse),
+                        ]);
+                        setSessionCapacityState(cap);
+                        setIssuedCountState(issued);
+                        setCapacityInput(String(cap));
+                        setSerialPrefix(prefix);
+                        toast.success(language === 'en' ? 'Configuration updated' : 'Konfigurasi dikemaskini');
+                      } catch (e: any) {
+                        toast.error(e.message || (language === 'en' ? 'Failed to update' : 'Gagal kemaskini'));
+                      } finally {
+                        setSessionLoading(false);
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    {sessionLoading ? (language === 'en' ? 'Saving...' : 'Menyimpan...') : (language === 'en' ? 'Update Configuration' : 'Kemaskini Kapasiti')}
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  {language === 'en' ? 'Example: Next serial number format' : 'Contoh: Format siri nombor'}
+                </p>
+                <p className="text-lg font-bold text-blue-900 font-mono mt-1">
+                  {serialPrefix}/{serialYear}/0001
+                </p>
+              </div>
+              <div className="mt-3 text-sm text-muted-foreground">
+                {language === 'en'
+                  ? 'Note: Serial format will be PREFIX/YEAR/NUMBER (e.g., MPHS/2025/0001). Capacity is based on the year.'
+                  : 'Nota: Format siri nombor adalah AWALAN/TAHUN/NOMBOR (cth: MPHS/2025/0001). Kapasiti berdasarkan tahun.'}
+              </div>
+
+              {/* KML Download Section - Integrated */}
+              <div className="mt-6 pt-6 border-t">
+                <div className="flex items-center gap-2 mb-4">
+                  <Map className="h-5 w-5" />
+                  <h3 className="font-semibold">{language === 'en' ? 'Download Interactive Map (KML)' : 'Muat Turun Peta Interaktif (KML)'}</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {language === 'en' 
+                    ? 'Download successful applications map data in KML format (same as dashboard interactive map)' 
+                    : 'Muat turun data peta permohonan berjaya dalam format KML (sama seperti peta interaktif dashboard)'}
+                </p>
+                <div className="flex items-end gap-4">
+                  <div style={{width: '150px'}}>
+                    <Label className="mb-2 block">{language === 'en' ? 'Session' : 'Sesi'}</Label>
+                    <Select value={kmlSession} onValueChange={setKmlSession}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{language === 'en' ? 'All Sessions' : 'Semua Sesi'}</SelectItem>
+                        {getKMLSessions().map(session => (
+                          <SelectItem key={session} value={session}>
+                            Sesi {session}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div style={{width: '200px'}}>
+                    <Button onClick={handleKMLDownload} className="w-full">
+                      <Download className="h-4 w-4 mr-2" />
+                      {language === 'en' ? 'Download KML' : 'Muat Turun KML'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
+
 
       {/* Detail Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
@@ -1045,14 +1103,16 @@ export default function AdminPanel() {
                     <Edit className="w-4 h-4 mr-2" />
                     {language === 'en' ? 'Edit' : 'Kemaskini'}
                   </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setShowDeleteModal(true)}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {language === 'en' ? 'Delete' : 'Padam'}
-                  </Button>
+                  {isAdminBoss && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setShowDeleteModal(true)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {language === 'en' ? 'Delete' : 'Padam'}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -1298,7 +1358,7 @@ export default function AdminPanel() {
 
       {/* Edit Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{language === 'en' ? 'Edit Application Details' : 'Kemaskini Butiran Permohonan'}</DialogTitle>
             <DialogDescription>
@@ -1369,74 +1429,12 @@ export default function AdminPanel() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                      <Label htmlFor="edit-street">{language === 'en' ? 'Street Address' : 'Alamat Jalan'} *</Label>
-                      <Input
-                        id="edit-street"
-                        value={editFormData.street}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, street: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-mukim">{language === 'en' ? 'Mukim' : 'Mukim'} *</Label>
-                      <Select 
-                        value={editFormData.mukim} 
-                        onValueChange={(value) => {
-                          setEditFormData(prev => ({ ...prev, mukim: value }));
-                          // Also update the separate mukim state for map sync if needed
-                          setEditMukim(value);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={language === 'en' ? 'Select Mukim' : 'Pilih Mukim'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Ulu Bernam">Ulu Bernam</SelectItem>
-                          <SelectItem value="Sungai Tinggi">Sungai Tinggi</SelectItem>
-                          <SelectItem value="Sungai Gumut">Sungai Gumut</SelectItem>
-                          <SelectItem value="Kuala Kalumpang">Kuala Kalumpang</SelectItem>
-                          <SelectItem value="Kalumpang">Kalumpang</SelectItem>
-                          <SelectItem value="Kerling">Kerling</SelectItem>
-                          <SelectItem value="Buloh Telor">Buloh Telor</SelectItem>
-                          <SelectItem value="Ampang Pechah">Ampang Pechah</SelectItem>
-                          <SelectItem value="Peretak">Peretak</SelectItem>
-                          <SelectItem value="Rasa">Rasa</SelectItem>
-                          <SelectItem value="Batang Kali">Batang Kali</SelectItem>
-                          <SelectItem value="Ulu Yam">Ulu Yam</SelectItem>
-                          <SelectItem value="Serendah">Serendah</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-poskod">{language === 'en' ? 'Postcode' : 'Poskod'}</Label>
-                      <Input
-                        id="edit-poskod"
-                        value={editFormData.poskod}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, poskod: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-daerah">{language === 'en' ? 'District' : 'Daerah'} *</Label>
-                      <Input
-                        id="edit-daerah"
-                        value={editFormData.daerah}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, daerah: e.target.value }))}
-                        disabled
-                        className="bg-muted"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-negeri">{language === 'en' ? 'State' : 'Negeri'} *</Label>
-                      <Input
-                        id="edit-negeri"
-                        value={editFormData.negeri}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, negeri: e.target.value }))}
-                        disabled
-                        className="bg-muted"
-                      />
-                    </div>
-                  </div>
+                  <Label htmlFor="edit-street">{language === 'en' ? 'Street Address' : 'Alamat Jalan'} *</Label>
+                  <Input
+                    id="edit-street"
+                    value={editFormData.street}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, street: e.target.value }))}
+                  />
                 </div>
               </div>
             </div>

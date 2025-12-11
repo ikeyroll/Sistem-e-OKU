@@ -261,16 +261,17 @@ export default function Dashboard() {
         const { getApplications } = await import('@/lib/api/applications');
         apps = await getApplications();
       } else {
-        // Get applications for specific year
+        // Get applications for specific year (session)
         const { getApplications } = await import('@/lib/api/applications');
         const allApps = await getApplications();
         const yearNum = parseInt(year);
         apps = allApps.filter(app => {
-          if (app.approved_date) {
-            const approvedYear = new Date(app.approved_date).getFullYear();
-            return approvedYear === yearNum;
-          }
-          return false;
+          // Include applications based on submission date OR approval date
+          const submittedYear = app.submitted_date ? new Date(app.submitted_date).getFullYear() : null;
+          const approvedYear = app.approved_date ? new Date(app.approved_date).getFullYear() : null;
+          
+          // Include if submitted in this year OR approved in this year
+          return submittedYear === yearNum || approvedYear === yearNum;
         });
       }
       
@@ -605,21 +606,18 @@ export default function Dashboard() {
           {(visibility.totalApps || visibility.successfulApps || visibility.inProgress) && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {visibility.totalApps && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{language === 'en' ? 'Total Applications' : 'Jumlah Permohonan'}</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.total}</div>
-                <p className="text-xs text-muted-foreground">Sesi {selectedSession}</p>
+            <Card className="text-center py-6">
+              <CardContent className="pt-6">
+                <div className="text-5xl font-bold mb-2">{stats?.total}</div>
+                <p className="text-sm font-medium">{language === 'en' ? 'Total Applications' : 'Jumlah Permohonan'}</p>
+                <p className="text-xs text-muted-foreground mt-1">Sesi {selectedSession}</p>
               </CardContent>
             </Card>
             )}
 
             {visibility.successfulApps && (
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className="cursor-pointer hover:shadow-lg transition-shadow text-center py-6"
               onClick={() => {
                 const apps = appsInSession.filter(a => ['Diluluskan', 'Sedia Diambil', 'Telah Diambil'].includes(a.status));
                 setSelectedApplicants(apps);
@@ -627,20 +625,17 @@ export default function Dashboard() {
                 setShowApplicantDialog(true);
               }}
             >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{language === 'en' ? 'Successful Applications' : 'Permohonan Berjaya'}</CardTitle>
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-700">{stats?.berjaya ?? 0}</div>
-                <p className="text-xs text-muted-foreground">{language === 'en' ? 'Approved + Ready + Collected' : 'Diluluskan + Sedia Diambil + Telah Diambil'}</p>
+              <CardContent className="pt-6">
+                <div className="text-5xl font-bold text-green-700 mb-2">{stats?.berjaya ?? 0}</div>
+                <p className="text-sm font-medium">{language === 'en' ? 'Successful Applications' : 'Permohonan Berjaya'}</p>
+                <p className="text-xs text-muted-foreground mt-1">{language === 'en' ? 'Approved + Ready + Collected' : 'Diluluskan + Sedia Diambil + Telah Diambil'}</p>
               </CardContent>
             </Card>
             )}
 
             {visibility.inProgress && (
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className="cursor-pointer hover:shadow-lg transition-shadow text-center py-6"
               onClick={() => {
                 const apps = appsInSession.filter(a => a.status === 'Dalam Proses');
                 setSelectedApplicants(apps);
@@ -648,20 +643,17 @@ export default function Dashboard() {
                 setShowApplicantDialog(true);
               }}
             >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{language === 'en' ? 'In Progress' : 'Dalam Proses'}</CardTitle>
-                <div className="h-4 w-4 rounded-full" style={{ backgroundColor: statusColors['Dalam Proses'] }} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold" style={{ color: statusColors['Dalam Proses'] }}>{stats?.byStatus.pending || 0}</div>
-                <p className="text-xs text-muted-foreground">Sedang diproses</p>
+              <CardContent className="pt-6">
+                <div className="text-5xl font-bold mb-2" style={{ color: statusColors['Dalam Proses'] }}>{stats?.byStatus.pending || 0}</div>
+                <p className="text-sm font-medium">{language === 'en' ? 'In Progress' : 'Dalam Proses'}</p>
+                <p className="text-xs text-muted-foreground mt-1">Sedang diproses</p>
               </CardContent>
             </Card>
             )}
 
             {/* Tidak Lengkap Card */}
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow border-red-200"
+              className="cursor-pointer hover:shadow-lg transition-shadow text-center py-6"
               onClick={() => {
                 const apps = appsInSession.filter(a => a.status === 'Tidak Lengkap');
                 setSelectedApplicants(apps);
@@ -669,13 +661,10 @@ export default function Dashboard() {
                 setShowApplicantDialog(true);
               }}
             >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-red-600">{language === 'en' ? 'Incomplete' : 'Tidak Lengkap'}</CardTitle>
-                <AlertCircle className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">{stats?.byStatus.rejected || 0}</div>
-                <p className="text-xs text-muted-foreground">{language === 'en' ? 'Incomplete documents' : 'Dokumen tidak lengkap'}</p>
+              <CardContent className="pt-6">
+                <div className="text-5xl font-bold text-red-600 mb-2">{stats?.byStatus.rejected || 0}</div>
+                <p className="text-sm font-medium text-red-600">{language === 'en' ? 'Incomplete' : 'Tidak Lengkap'}</p>
+                <p className="text-xs text-muted-foreground mt-1">{language === 'en' ? 'Incomplete documents' : 'Dokumen tidak lengkap'}</p>
               </CardContent>
             </Card>
           </div>
@@ -686,53 +675,14 @@ export default function Dashboard() {
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>{language === 'en' ? 'Interactive Map - Application Distribution' : 'Peta Interaktif - Taburan Permohonan'}</CardTitle>
-              <CardDescription>{language === 'en' ? 'Select a mukim to auto-zoom and view application distribution in that area' : 'Pilih mukim untuk zum automatik dan lihat taburan permohonan di kawasan tersebut'}</CardDescription>
+              <CardDescription>{language === 'en' ? 'View application distribution on the map' : 'Lihat taburan permohonan pada peta'}</CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Two-column layout: Info on left, Map on right */}
-              <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Filter Controls & Stats */}
-                <div className="lg:col-span-1 space-y-4">
-                  {/* Pilih Mukim Dropdown */}
-                  <div className="p-3 border rounded">
-                    <div className="text-muted-foreground mb-1 text-sm">{language === 'en' ? 'Select Mukim' : 'Pilih Mukim'}</div>
-                    <select
-                      className="w-full border rounded p-2 text-sm"
-                      value={mukim}
-                      onChange={(e) => setMukim(e.target.value)}
-                    >
-                      <option value="">{language === 'en' ? 'All Mukims' : 'Semua Mukim'}</option>
-                      {Array.from(new Set(appsInSession.map(a => a.mukim).filter(Boolean))).sort().map((m: string) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="p-4 border rounded bg-green-50">
-                    <div className="text-green-800 text-sm font-medium mb-1">{language === 'en' ? 'Successful' : 'Berjaya'}</div>
-                    <div className="text-xs text-green-600 mb-2">{mukim || daerah || (language === 'en' ? 'All areas' : 'Semua kawasan')}</div>
-                    <div className="text-3xl font-bold text-green-700 flex items-center gap-2">
-                      <CheckCircle2 className="h-6 w-6" /> {successfulInArea}
-                    </div>
-                  </div>
-                  <div className="p-4 border rounded bg-green-50">
-                    <div className="text-green-800 text-sm font-medium mb-1">{language === 'en' ? 'Shown on Map' : 'Dipapar Pada Peta'}</div>
-                    <div className="text-xs text-green-600 mb-2">{language === 'en' ? 'Successful only' : 'Berjaya sahaja'}</div>
-                    <div className="text-3xl font-bold text-green-700">
-                      {appsInSession.filter(a => {
-                        if (!a.latitude || !a.longitude) return false;
-                        if (!isSuccess(a.status)) return false;
-                        if (mukim && a.mukim !== mukim) return false;
-                        if (daerah && !mukim && a.daerah !== daerah) return false;
-                        return true;
-                      }).length}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Right Column - Interactive Map (wider) */}
-                <div className="lg:col-span-2">
+                {/* Interactive Map */}
+                <div>
                   <DashboardMap
-                    applications={appsInSession.filter(a => isSuccess(a.status))}
+                    applications={appsInSession}
                     selectedMukim={mukim}
                     selectedDaerah={daerah}
                     height={450}
@@ -745,7 +695,6 @@ export default function Dashboard() {
                     }}
                   />
                 </div>
-              </div>
             </CardContent>
           </Card>
           )}

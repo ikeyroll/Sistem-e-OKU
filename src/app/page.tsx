@@ -22,13 +22,43 @@ export default function Home() {
   const [userExists, setUserExists] = useState<boolean | null>(null);
   const [showButtons, setShowButtons] = useState(false);
 
+  // Validate Malaysian IC format (YYMMDD-PB-###G)
+  const isValidICFormat = (ic: string): boolean => {
+    const cleanIC = ic.replace(/[-\s]/g, '');
+    
+    // Must be exactly 12 digits
+    if (cleanIC.length !== 12 || !/^\d+$/.test(cleanIC)) {
+      return false;
+    }
+    
+    // Validate date part (YYMMDD)
+    const year = parseInt(cleanIC.substring(0, 2));
+    const month = parseInt(cleanIC.substring(2, 4));
+    const day = parseInt(cleanIC.substring(4, 6));
+    
+    if (month < 1 || month > 12) return false;
+    if (day < 1 || day > 31) return false;
+    
+    return true;
+  };
+
   // Check if user exists in Supabase database
   const checkUserExists = async (ic: string) => {
     console.log('🔍 Homepage - Checking IC:', ic);
     setIsChecking(true);
     setShowButtons(false);
+    setUserExists(null);
     
     try {
+      // First validate IC format
+      if (!isValidICFormat(ic)) {
+        console.log('❌ Invalid IC format');
+        setUserExists(null); // null means invalid format
+        setShowButtons(true);
+        setIsChecking(false);
+        return;
+      }
+      
       const cleanIC = ic.replace(/[-\s]/g, '');
       console.log('📡 Calling getApplicationByIC with:', cleanIC);
       
@@ -94,12 +124,12 @@ export default function Home() {
       <Header />
       <main className="min-h-screen">
         {/* Hero Section with IC Validation */}
-        <section className="relative bg-gradient-to-br from-primary/10 via-background to-background py-20 sm:py-32">
+        <section className="relative bg-gradient-to-br from-primary/10 via-background to-background py-8 sm:py-12">
           <div className="container mx-auto px-6 sm:px-6 lg:px-8">
             <div className="max-w-2xl mx-auto">
               <div className="text-center mb-8">
                 {/* Logo e-OKU */}
-                <div className="flex justify-center mb-6">
+                <div className="flex justify-center mb-3 sm:mb-6">
                   <div className="relative w-90 h-90 sm:w-100 sm:h-100">
                     <Image
                       src="/e-oku.png"
@@ -166,7 +196,19 @@ export default function Home() {
                   {/* Show buttons after checking */}
                   {showButtons && (
                     <div className="mt-6 space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
-                      {userExists ? (
+                      {userExists === null ? (
+                        <>
+                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-center">
+                            <AlertCircle className="h-5 w-5 text-red-600 mx-auto mb-2" />
+                            <p className="text-red-800 font-medium">
+                              Format No. Kad Pengenalan tidak sah
+                            </p>
+                            <p className="text-red-600 text-sm mt-1">
+                              Sila masukkan No. Kad Pengenalan yang betul (contoh: 990101-01-1234)
+                            </p>
+                          </div>
+                        </>
+                      ) : userExists ? (
                         <>
                           <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
                             <p className="text-green-800 font-medium mb-3">

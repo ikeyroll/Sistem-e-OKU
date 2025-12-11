@@ -11,7 +11,7 @@ export interface DashboardMapProps {
     mukim?: string;
     daerah?: string;
     status?: string;
-    pemohon?: { name?: string };
+    pemohon?: { name?: string; okuCategory?: string };
   }>;
   selectedMukim?: string;
   selectedDaerah?: string;
@@ -64,10 +64,20 @@ function ensureLeafletLoaded(): Promise<typeof window & { L: any }> {
   });
 }
 
-// Status color mapping - all successful apps are green
+// Status color mapping based on application status
 const getStatusColor = (status?: string): string => {
-  // Since this map only shows successful applications, always return green
-  return '#10b981'; // green for all successful apps
+  switch (status) {
+    case 'Diluluskan':
+    case 'Sedia Diambil':
+    case 'Telah Diambil':
+      return '#10b981'; // Green for approved/ready/collected
+    case 'Dalam Proses':
+      return '#f59e0b'; // Yellow for in progress
+    case 'Tidak Lengkap':
+      return '#ef4444'; // Red for incomplete
+    default:
+      return '#6b7280'; // Gray for unknown
+  }
 };
 
 export const DashboardMap: React.FC<DashboardMapProps> = ({
@@ -80,18 +90,26 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
-  const mainMarkerRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<{ mukim?: string; daerah?: string } | null>(null);
-  const [showOutsideWarning, setShowOutsideWarning] = useState(false);
 
   // Filter applications based on selected mukim/daerah
   const filteredApps = applications.filter(app => {
-    if (!app.latitude || !app.longitude) return false;
-    if (selectedMukim && app.mukim !== selectedMukim) return false;
-    if (selectedDaerah && !selectedMukim && app.daerah !== selectedDaerah) return false;
+    if (!app.latitude || !app.longitude) {
+      console.log('App filtered out - no coordinates:', app.id, app);
+      return false;
+    }
+    if (selectedMukim && app.mukim !== selectedMukim) {
+      console.log('App filtered out - mukim mismatch:', app.id, 'expected:', selectedMukim, 'got:', app.mukim);
+      return false;
+    }
+    if (selectedDaerah && !selectedMukim && app.daerah !== selectedDaerah) {
+      console.log('App filtered out - daerah mismatch:', app.id, 'expected:', selectedDaerah, 'got:', app.daerah);
+      return false;
+    }
     return true;
   });
+  
+  console.log('DashboardMap - Total apps:', applications.length, 'Filtered apps:', filteredApps.length);
 
   // Get center and zoom based on selection
   const getMapView = () => {
@@ -139,54 +157,6 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
           maxZoom: 19,
           attribution: '&copy; OpenStreetMap contributors'
         }).addTo(mapRef.current);
-
-        // Add main draggable marker
-        mainMarkerRef.current = L.marker([view.lat, view.lon], { 
-          draggable: true,
-          zIndexOffset: 1000 
-        }).addTo(mapRef.current);
-
-        // Handle marker drag
-        mainMarkerRef.current.on('dragend', async () => {
-          const pos = mainMarkerRef.current.getLatLng();
-          const rev = await reverseGeocode({ lat: pos.lat, lon: pos.lng });
-          const em = extractDaerahMukim(rev?.address);
-          setCurrentLocation({ mukim: em.mukim, daerah: em.daerah });
-          
-          // Check if location is outside Hulu Selangor
-          if (!em.daerah || em.daerah.toLowerCase() !== 'hulu selangor') {
-            setShowOutsideWarning(true);
-            return;
-          }
-          
-          if (onLocationChange) {
-            onLocationChange({ lat: pos.lat, lon: pos.lng, address: rev?.display_name, daerah: em.daerah, mukim: em.mukim });
-          }
-        });
-
-        // Handle map click to move marker
-        mapRef.current.on('click', async (e: any) => {
-          const { lat, lng } = e.latlng;
-          mainMarkerRef.current.setLatLng([lat, lng]);
-          const rev = await reverseGeocode({ lat, lon: lng });
-          const em = extractDaerahMukim(rev?.address);
-          setCurrentLocation({ mukim: em.mukim, daerah: em.daerah });
-          
-          // Check if location is outside Hulu Selangor
-          if (!em.daerah || em.daerah.toLowerCase() !== 'hulu selangor') {
-            setShowOutsideWarning(true);
-            return;
-          }
-          
-          if (onLocationChange) {
-            onLocationChange({ lat, lon: lng, address: rev?.display_name, daerah: em.daerah, mukim: em.mukim });
-          }
-        });
-
-        // Initialize current location based on selected mukim
-        if (selectedMukim) {
-          setCurrentLocation({ mukim: selectedMukim, daerah: selectedDaerah || 'Hulu Selangor' });
-        }
         
         setIsLoaded(true);
       } catch (e) {
@@ -247,10 +217,10 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
 
         // Add popup with info
         const popupContent = `
-          <div style="min-width: 150px;">
-            <strong>${app.pemohon?.name || 'Pemohon'}</strong><br/>
-            <span style="color: ${color};">● ${app.status || 'N/A'}</span><br/>
-            <small>Mukim: ${app.mukim || '-'}</small>
+          <div style="min-width: 180px; padding: 4px;">
+            <div style="margin-bottom: 6px;"><strong>Nama Pemohon:</strong><br/>${app.pemohon?.name || 'N/A'}</div>
+            <div style="margin-bottom: 6px;"><strong>Kategori OKU:</strong><br/>${app.pemohon?.okuCategory || 'N/A'}</div>
+            <div><strong>Status:</strong><br/><span style="color: ${color};">● ${app.status || 'N/A'}</span></div>
           </div>
         `;
         marker.bindPopup(popupContent);
@@ -265,11 +235,6 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
     const view = getMapView();
     if (view.lat && view.lon && !isNaN(view.lat) && !isNaN(view.lon)) {
       mapRef.current.setView([view.lat, view.lon], view.zoom);
-      
-      // Move main marker to center
-      if (mainMarkerRef.current) {
-        mainMarkerRef.current.setLatLng([view.lat, view.lon]);
-      }
     }
 
   }, [filteredApps, selectedMukim, selectedDaerah, isLoaded]);
@@ -295,81 +260,26 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
             border: '1px solid hsl(var(--border))'
           }}
         />
-        
-        {/* Popup Warning Overlay */}
-        {showOutsideWarning && (
-          <>
-            {/* Semi-transparent backdrop */}
-            <div 
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                zIndex: 999,
-                borderRadius: 8
-              }}
-              onClick={() => setShowOutsideWarning(false)}
-            />
-            {/* Warning popup */}
-            <div 
-              style={{
-                position: 'absolute',
-                top: '20px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 1000,
-                maxWidth: '95%',
-                minWidth: '280px'
-              }}
-            >
-              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 shadow-xl">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-2">
-                    <div className="text-red-600 text-lg">⚠️</div>
-                    <div>
-                      <h3 className="text-red-800 font-semibold text-sm mb-1">
-                        Lokasi di Luar Kawasan
-                      </h3>
-                      <p className="text-red-700 text-xs">
-                        Pin berada di luar daerah Hulu Selangor. Sila pilih lokasi dalam kawasan yang betul.
-                      </p>
-                      {currentLocation && (
-                        <p className="text-red-600 text-xs mt-1">
-                          <strong>Lokasi semasa:</strong> {currentLocation.daerah || 'Tidak dikenali'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowOutsideWarning(false)}
-                    className="text-red-600 hover:text-red-800 font-bold text-lg leading-none ml-2 hover:bg-red-100 rounded px-1"
-                    style={{ minWidth: '20px' }}
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
-      {/* Instructions - Below Map */}
-      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm font-medium text-blue-800 mb-1">📍 Cara Menggunakan Peta Interaktif (Taburan Permohonan Berjaya):</p>
-        <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
-          <li><strong>Peta ini hanya memaparkan permohonan BERJAYA</strong> (Diluluskan, Sedia Diambil, Telah Diambil)</li>
-          <li><strong>Pilih Mukim</strong> untuk zum automatik ke kawasan tersebut dan lihat taburan permohonan berjaya</li>
-          <li><strong>Klik/Sentuh</strong> pada peta untuk meletakkan pin di lokasi tersebut</li>
-          <li><strong>Seret pin utama</strong> (marker besar) untuk menggerakkan ke lokasi yang tepat</li>
-          <li><strong>Klik pada bulatan hijau</strong> untuk melihat maklumat permohonan</li>
-          <li>Lokasi berdasarkan alamat yang diisi oleh pemohon dalam borang permohonan</li>
-          <li><strong>Contoh:</strong> Sekarang di Batang Kali, seret pin ke Rasa - data dan taburan akan berubah ke Rasa</li>
-          <li><strong>Amaran:</strong> Jika pin diseret ke luar daerah Hulu Selangor, amaran akan dikeluarkan</li>
-        </ul>
+      {/* Stats and Instructions - Side by Side */}
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Stats Box */}
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-sm font-medium text-green-800 mb-1">Dipapar Pada Peta</p>
+          <p className="text-xs text-green-700 mb-2">Berjaya sahaja</p>
+          <div className="text-3xl font-bold text-green-700">{filteredApps.length}</div>
+        </div>
+
+        {/* Instructions Box */}
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm font-medium text-blue-800 mb-1">📍 Cara Menggunakan Peta Interaktif (Taburan Permohonan Berjaya):</p>
+          <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+            <li><strong>Peta ini hanya memaparkan permohonan BERJAYA</strong> (Diluluskan, Sedia Diambil, Telah Diambil)</li>
+            <li><strong>Klik pada bulatan hijau</strong> untuk melihat maklumat permohonan (Nama Pemohon, Kategori OKU, Status)</li>
+            <li>Lokasi berdasarkan alamat yang diisi oleh pemohon dalam borang permohonan</li>
+          </ul>
+        </div>
       </div>
     </div>
   );

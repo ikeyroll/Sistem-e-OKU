@@ -130,6 +130,7 @@ All CRUD operations now properly integrated with Supabase:
 - Refreshes admin list immediately
 ```
 
+#### Auto-Initialization
 ```typescript
 - Calls initializeDefaultAdmins() on page load
 - Creates default admin accounts if table is empty:

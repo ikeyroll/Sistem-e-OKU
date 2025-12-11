@@ -53,10 +53,6 @@ export default function PembaharuanPermohonan() {
     pemohonTaxAccount: '',
     // Address components
     pemohonStreet: '',
-    pemohonMukim: '',
-    pemohonDaerah: 'Hulu Selangor',
-    pemohonPoskod: '',
-    pemohonNegeri: 'Selangor',
     pemohonCarReg: '',
     pemohonPhone: '',
     pemohonOKUCategory: '',
@@ -140,10 +136,6 @@ export default function PembaharuanPermohonan() {
         pemohonTaxAccount: pemohon.taxAccount || '',
         // Handle both old string format and new object format
         pemohonStreet: typeof pemohon.address === 'object' ? pemohon.address.street || '' : pemohon.address || '',
-        pemohonMukim: typeof pemohon.address === 'object' ? pemohon.address.mukim || '' : '',
-        pemohonDaerah: typeof pemohon.address === 'object' ? pemohon.address.daerah || 'Hulu Selangor' : 'Hulu Selangor',
-        pemohonPoskod: typeof pemohon.address === 'object' ? pemohon.address.poskod || '' : '',
-        pemohonNegeri: typeof pemohon.address === 'object' ? pemohon.address.negeri || 'Selangor' : 'Selangor',
         pemohonCarReg: pemohon.carReg || '',
         pemohonPhone: pemohon.phone || '',
         pemohonOKUCategory: pemohon.okuCategory || '',
@@ -216,8 +208,7 @@ export default function PembaharuanPermohonan() {
     
     // Validation - Maklumat Pemohon (WAJIB)
     if (!formData.pemohonName || !formData.pemohonIC || !formData.pemohonOKUCard || !formData.pemohonTaxAccount ||
-        !formData.pemohonStreet || !formData.pemohonMukim || !formData.pemohonDaerah || 
-        !formData.pemohonCarReg || !formData.pemohonPhone || !formData.pemohonOKUCategory) {
+        !formData.pemohonStreet || !formData.pemohonCarReg || !formData.pemohonPhone || !formData.pemohonOKUCategory) {
       toast.error('Sila lengkapkan semua maklumat pemohon yang diwajibkan');
       return;
     }
@@ -236,9 +227,69 @@ export default function PembaharuanPermohonan() {
       return;
     }
 
+    // Validation - File sizes (max 5MB) for new documents
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    const fileSizeErrors = [];
+    
+    if (newDocuments.icCopy && newDocuments.icCopy.size > maxSize) {
+      fileSizeErrors.push('Salinan Kad Pengenalan');
+    }
+    if (newDocuments.okuCard && newDocuments.okuCard.size > maxSize) {
+      fileSizeErrors.push('Kad OKU');
+    }
+    if (newDocuments.drivingLicense && newDocuments.drivingLicense.size > maxSize) {
+      fileSizeErrors.push('Lesen Memandu');
+    }
+    if (newDocuments.passportPhoto && newDocuments.passportPhoto.size > maxSize) {
+      fileSizeErrors.push('Gambar Pasport');
+    }
+    
+    if (fileSizeErrors.length > 0) {
+      toast.error(`Dokumen melebihi had 5MB: ${fileSizeErrors.join(', ')}`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      // Check for duplicate OKU Card, Tax Account, and Car Registration (excluding current application)
+      toast.info('Memeriksa maklumat...');
+      const { supabase } = await import('@/lib/supabase');
+      
+      const { data: existingApps, error: checkError } = await supabase
+        .from('applications')
+        .select('pemohon, pemohon->ic')
+        .or(`pemohon->>okuCard.eq.${formData.pemohonOKUCard},pemohon->>taxAccount.eq.${formData.pemohonTaxAccount},pemohon->>carReg.eq.${formData.pemohonCarReg}`)
+        .neq('pemohon->>ic', formData.pemohonIC); // Exclude current user's IC
+      
+      if (checkError) {
+        console.error('Error checking duplicates:', checkError);
+      }
+      
+      if (existingApps && existingApps.length > 0) {
+        const duplicateFields = [];
+        
+        for (const app of existingApps) {
+          const pemohon = app.pemohon as any;
+          if (pemohon.okuCard === formData.pemohonOKUCard) {
+            duplicateFields.push('No. Kad OKU');
+          }
+          if (pemohon.taxAccount === formData.pemohonTaxAccount) {
+            duplicateFields.push('No. Akaun Cukai Taksiran');
+          }
+          if (pemohon.carReg === formData.pemohonCarReg) {
+            duplicateFields.push('No. Pendaftaran Kereta');
+          }
+        }
+        
+        if (duplicateFields.length > 0) {
+          const uniqueFields = [...new Set(duplicateFields)];
+          toast.error(`Maklumat berikut telah didaftarkan oleh pengguna lain: ${uniqueFields.join(', ')}`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
       // 1. Generate reference number for renewal
       const refNo = await generateRefNumber('pembaharuan');
       toast.info('Generating reference number...');
@@ -266,11 +317,11 @@ export default function PembaharuanPermohonan() {
           okuCategory: formData.pemohonOKUCategory,
           address: {
             street: formData.pemohonStreet,
-            mukim: formData.pemohonMukim,
-            daerah: formData.pemohonDaerah,
-            poskod: formData.pemohonPoskod,
-            negeri: formData.pemohonNegeri,
-            full_address: `${formData.pemohonStreet}, ${formData.pemohonMukim}, ${formData.pemohonPoskod} ${formData.pemohonDaerah}, ${formData.pemohonNegeri}`
+            mukim: mukim || '',
+            daerah: daerah || 'Hulu Selangor',
+            poskod: '',
+            negeri: 'Selangor',
+            full_address: formData.pemohonStreet
           },
         },
         tanggungan: formData.isTanggungan ? {
@@ -530,77 +581,36 @@ export default function PembaharuanPermohonan() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
-                    <Label htmlFor="pemohonStreet">Alamat Jalan *</Label>
+                    <Label htmlFor="pemohonStreet">Alamat *</Label>
                     <Input
                       id="pemohonStreet"
                       name="pemohonStreet"
                       value={formData.pemohonStreet}
-                      onChange={handleInputChange}
+                      onChange={(e) => {
+                        handleInputChange(e);
+                        // Geocode address and auto-pin on map
+                        if (editMode.pemohon) {
+                          const address = e.target.value;
+                          if (address.length > 5) {
+                            console.log('Geocoding address:', address);
+                            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Hulu Selangor, Selangor, Malaysia')}`)
+                              .then(res => res.json())
+                              .then(data => {
+                                console.log('Geocoding result:', data);
+                                if (data && data.length > 0) {
+                                  const lat = parseFloat(data[0].lat);
+                                  const lon = parseFloat(data[0].lon);
+                                  console.log('Setting coordinates:', lat, lon);
+                                  setLatitude(lat);
+                                  setLongitude(lon);
+                                }
+                              })
+                              .catch(err => console.error('Geocoding error:', err));
+                          }
+                        }
+                      }}
                       placeholder="No 123, Jalan Merdeka, Taman Sejahtera"
                       required
-                      disabled={!editMode.pemohon}
-                      className={!editMode.pemohon ? 'bg-muted' : ''}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pemohonMukim">Mukim *</Label>
-                    <Select value={formData.pemohonMukim} onValueChange={(value) => setFormData({...formData, pemohonMukim: value})} disabled={!editMode.pemohon}>
-                      <SelectTrigger className={!editMode.pemohon ? 'bg-muted' : ''}>
-                        <SelectValue placeholder="Pilih Mukim" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Ulu Bernam">Ulu Bernam</SelectItem>
-                        <SelectItem value="Sungai Tinggi">Sungai Tinggi</SelectItem>
-                        <SelectItem value="Sungai Gumut">Sungai Gumut</SelectItem>
-                        <SelectItem value="Kuala Kalumpang">Kuala Kalumpang</SelectItem>
-                        <SelectItem value="Kalumpang">Kalumpang</SelectItem>
-                        <SelectItem value="Kerling">Kerling</SelectItem>
-                        <SelectItem value="Buloh Telor">Buloh Telor</SelectItem>
-                        <SelectItem value="Ampang Pechah">Ampang Pechah</SelectItem>
-                        <SelectItem value="Peretak">Peretak</SelectItem>
-                        <SelectItem value="Rasa">Rasa</SelectItem>
-                        <SelectItem value="Batang Kali">Batang Kali</SelectItem>
-                        <SelectItem value="Ulu Yam">Ulu Yam</SelectItem>
-                        <SelectItem value="Serendah">Serendah</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="pemohonPoskod">Poskod</Label>
-                    <Input
-                      id="pemohonPoskod"
-                      name="pemohonPoskod"
-                      value={formData.pemohonPoskod}
-                      onChange={handleInputChange}
-                      placeholder="44000"
-                      disabled={!editMode.pemohon}
-                      className={!editMode.pemohon ? 'bg-muted' : ''}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pemohonDaerah">Daerah *</Label>
-                    <Input
-                      id="pemohonDaerah"
-                      name="pemohonDaerah"
-                      value={formData.pemohonDaerah}
-                      onChange={handleInputChange}
-                      placeholder="Hulu Selangor"
-                      required
-                      readOnly
-                      disabled={!editMode.pemohon}
-                      className={!editMode.pemohon ? 'bg-muted' : ''}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pemohonNegeri">Negeri *</Label>
-                    <Input
-                      id="pemohonNegeri"
-                      name="pemohonNegeri"
-                      value={formData.pemohonNegeri}
-                      onChange={handleInputChange}
-                      placeholder="Selangor"
-                      required
-                      readOnly
                       disabled={!editMode.pemohon}
                       className={!editMode.pemohon ? 'bg-muted' : ''}
                     />
@@ -614,7 +624,7 @@ export default function PembaharuanPermohonan() {
                     invalid={!isInsideDistrict}
                     showInstructions={true}
                     onLocationChange={(loc) => {
-                      // Map is independent - don't update address from map
+                      // Only update coordinates, don't change address field
                       setLatitude(loc.lat);
                       setLongitude(loc.lon);
                       if (loc.daerah) setDaerah(loc.daerah);
@@ -664,15 +674,16 @@ export default function PembaharuanPermohonan() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-3">
                   <Checkbox 
                     id="isTanggungan"
                     checked={formData.isTanggungan}
                     onCheckedChange={handleCheckboxChange}
+                    className="h-5 w-5 border-2 border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                   />
                   <label
                     htmlFor="isTanggungan"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    className="text-base font-medium leading-none cursor-pointer"
                   >
                     Penjaga kepada OKU
                   </label>
@@ -827,23 +838,20 @@ export default function PembaharuanPermohonan() {
             </Card>
 
             {/* Confirmation Checkbox */}
-            <Card className="border-l-4 border-l-purple-500">
-              <CardContent className="py-4">
-                <div className="flex items-start space-x-3">
-                  <Checkbox 
-                    id="confirmDeclaration"
-                    checked={confirmDeclaration}
-                    onCheckedChange={(checked) => setConfirmDeclaration(checked as boolean)}
-                  />
-                  <label
-                    htmlFor="confirmDeclaration"
-                    className="text-sm leading-relaxed cursor-pointer"
-                  >
-                    Saya dengan ini mengesahkan bahawa semua maklumat yang diberikan adalah benar, tepat dan terkini. Sekiranya kenyataan dan dokumen yang diberikan tidak benar atau permohonan ini tidak lengkap, pihak MPHS berhak membatalkan permohonan ini. <span className="text-red-600 font-medium">(Wajib)</span>
-                  </label>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="flex items-start space-x-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+              <Checkbox 
+                id="confirmDeclaration"
+                checked={confirmDeclaration}
+                onCheckedChange={(checked) => setConfirmDeclaration(checked as boolean)}
+                className="h-6 w-6 mt-1 border-2 border-blue-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              />
+              <label
+                htmlFor="confirmDeclaration"
+                className="text-base leading-relaxed cursor-pointer flex-1"
+              >
+                Saya dengan ini mengesahkan bahawa semua maklumat yang diberikan adalah benar, tepat dan terkini. Sekiranya kenyataan dan dokumen yang diberikan tidak benar atau permohonan ini tidak lengkap, pihak MPHS berhak membatalkan permohonan ini. <span className="text-red-600 font-medium">(Wajib)</span>
+              </label>
+            </div>
 
             {/* Submit Buttons */}
             <div className="flex gap-4">

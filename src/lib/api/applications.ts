@@ -563,14 +563,13 @@ export async function uploadFile(file: File, path: string) {
 
 // Generate unique reference number
 export async function generateRefNumber(type: 'baru' | 'pembaharuan'): Promise<string> {
-  const prefix = type === 'baru' ? 'RB' : 'RP';
-  const year = new Date().getFullYear();
+  const prefix = 'OKU';
   
-  // Get last ref number for the year
+  // Get last ref number with OKU prefix
   const { data, error } = await supabase
     .from('applications')
     .select('ref_no')
-    .like('ref_no', `${prefix}${year}%`)
+    .like('ref_no', `${prefix}%`)
     .order('ref_no', { ascending: false })
     .limit(1);
   
@@ -579,11 +578,13 @@ export async function generateRefNumber(type: 'baru' | 'pembaharuan'): Promise<s
   let sequence = 1;
   if (data && data.length > 0) {
     const lastRefNo = data[0].ref_no;
-    const lastSequence = parseInt(lastRefNo.slice(-4));
+    // Extract the numeric part (e.g., OKU0000001 -> 0000001)
+    const lastSequence = parseInt(lastRefNo.replace('OKU', ''));
     sequence = lastSequence + 1;
   }
   
-  return `${prefix}${year}${sequence.toString().padStart(4, '0')}`;
+  // Format: OKU0000001 (7 digits)
+  return `${prefix}${sequence.toString().padStart(7, '0')}`;
 }
 
 // Delete application

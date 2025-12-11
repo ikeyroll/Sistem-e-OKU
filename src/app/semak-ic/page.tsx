@@ -215,13 +215,13 @@ export default function SemakIC() {
   return (
     <>
       <Header />
-      <main className="min-h-screen py-12 bg-gradient-to-br from-primary/5 to-background">
+      <main className="min-h-screen py-6 bg-gradient-to-br from-primary/5 to-background">
         <div className="container mx-auto px-4 max-w-3xl">
           {/* Header with Logo */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             {/* Logo MPHS */}
-            <div className="flex justify-center mb-6">
-              <div className="relative w-32 h-32 sm:w-40 sm:h-40">
+            <div className="flex justify-center mb-4">
+              <div className="relative w-24 h-24 sm:w-32 sm:h-32">
                 <Image
                   src="/mphs.jpg"
                   alt="Logo MPHS"
@@ -233,16 +233,16 @@ export default function SemakIC() {
             </div>
             
             {/* Nama Penuh Majlis */}
-            <div className="mb-4">
-              <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-2">
+            <div className="mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-primary mb-1">
                 Majlis Perbandaran Hulu Selangor
               </h2>
             </div>
             
             {/* Sistem Title */}
-            <div className="border-t border-b border-primary/20 py-4 mb-2">
-              <h1 className="text-3xl sm:text-4xl font-bold mb-2">Sistem e-Stiker Khas</h1>
-              <p className="text-muted-foreground text-base sm:text-lg">
+            <div className="border-t border-b border-primary/20 py-2 mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-1">Sistem e-Stiker Khas</h1>
+              <p className="text-muted-foreground text-sm sm:text-base">
                 Daftar pelekat kenderaan OKU secara dalam talian dengan mudah dan cepat
               </p>
             </div>

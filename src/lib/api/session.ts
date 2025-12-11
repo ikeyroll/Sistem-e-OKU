@@ -3,6 +3,7 @@ import { supabase } from '../supabase';
 export interface SessionSetting {
   year: number;
   capacity: number;
+  prefix?: string;
   updated_at?: string;
 }
 
@@ -28,6 +29,29 @@ export async function setSessionCapacity(year: number, capacity: number): Promis
   const { error } = await supabase
     .from('session_settings')
     .upsert({ year, capacity, updated_at: new Date().toISOString() }, { onConflict: 'year' });
+
+  if (error) throw error;
+}
+
+export async function getSessionPrefix(year: number): Promise<string> {
+  const { data, error } = await supabase
+    .from('session_settings')
+    .select('prefix')
+    .eq('year', year)
+    .single();
+
+  if (error || !data?.prefix) {
+    return 'MPHS'; // Default prefix
+  }
+
+  return data.prefix;
+}
+
+export async function setSessionConfig(year: number, capacity: number, prefix: string): Promise<void> {
+  // Upsert capacity and prefix for the given year
+  const { error } = await supabase
+    .from('session_settings')
+    .upsert({ year, capacity, prefix: prefix.toUpperCase(), updated_at: new Date().toISOString() }, { onConflict: 'year' });
 
   if (error) throw error;
 }

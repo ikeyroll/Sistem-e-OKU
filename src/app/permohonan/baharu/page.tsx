@@ -32,10 +32,6 @@ export default function PendaftaranBaharu() {
     pemohonTaxAccount: '',
     // Address components
     pemohonStreet: '',
-    pemohonMukim: '',
-    pemohonDaerah: 'Hulu Selangor', // Default to Hulu Selangor
-    pemohonPoskod: '',
-    pemohonNegeri: 'Selangor', // Default to Selangor
     pemohonCarReg: '',
     pemohonPhone: '',
     pemohonOKUCategory: '',
@@ -138,15 +134,16 @@ export default function PendaftaranBaharu() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isInsideDistrict) {
-      toast.error('Lokasi di luar daerah Hulu Selangor. Sila pilih lokasi dalam kawasan Hulu Selangor.');
+    
+    // Check if IC has been validated
+    if (!formData.pemohonIC) {
+      toast.error('Sila semak No. Kad Pengenalan terlebih dahulu');
       return;
     }
     
     // Validation - Maklumat Pemohon (WAJIB)
     if (!formData.pemohonName || !formData.pemohonIC || !formData.pemohonOKUCard || !formData.pemohonTaxAccount ||
-        !formData.pemohonStreet || !formData.pemohonMukim || !formData.pemohonDaerah || 
-        !formData.pemohonCarReg || !formData.pemohonPhone || !formData.pemohonOKUCategory) {
+        !formData.pemohonStreet || !formData.pemohonCarReg || !formData.pemohonPhone || !formData.pemohonOKUCategory) {
       toast.error('Sila lengkapkan semua maklumat pemohon yang diwajibkan');
       return;
     }
@@ -171,9 +168,68 @@ export default function PendaftaranBaharu() {
       return;
     }
 
+    // Validation - File sizes (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    const fileSizeErrors = [];
+    
+    if (documents.icCopy && documents.icCopy.size > maxSize) {
+      fileSizeErrors.push('Salinan Kad Pengenalan');
+    }
+    if (documents.okuCard && documents.okuCard.size > maxSize) {
+      fileSizeErrors.push('Kad OKU');
+    }
+    if (documents.drivingLicense && documents.drivingLicense.size > maxSize) {
+      fileSizeErrors.push('Lesen Memandu');
+    }
+    if (documents.passportPhoto && documents.passportPhoto.size > maxSize) {
+      fileSizeErrors.push('Gambar Pasport');
+    }
+    
+    if (fileSizeErrors.length > 0) {
+      toast.error(`Dokumen melebihi had 5MB: ${fileSizeErrors.join(', ')}`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      // Check for duplicate OKU Card, Tax Account, and Car Registration
+      toast.info('Memeriksa maklumat...');
+      const { supabase } = await import('@/lib/supabase');
+      
+      const { data: existingApps, error: checkError } = await supabase
+        .from('applications')
+        .select('pemohon')
+        .or(`pemohon->>okuCard.eq.${formData.pemohonOKUCard},pemohon->>taxAccount.eq.${formData.pemohonTaxAccount},pemohon->>carReg.eq.${formData.pemohonCarReg}`);
+      
+      if (checkError) {
+        console.error('Error checking duplicates:', checkError);
+      }
+      
+      if (existingApps && existingApps.length > 0) {
+        const duplicateFields = [];
+        
+        for (const app of existingApps) {
+          const pemohon = app.pemohon as any;
+          if (pemohon.okuCard === formData.pemohonOKUCard) {
+            duplicateFields.push('No. Kad OKU');
+          }
+          if (pemohon.taxAccount === formData.pemohonTaxAccount) {
+            duplicateFields.push('No. Akaun Cukai Taksiran');
+          }
+          if (pemohon.carReg === formData.pemohonCarReg) {
+            duplicateFields.push('No. Pendaftaran Kereta');
+          }
+        }
+        
+        if (duplicateFields.length > 0) {
+          const uniqueFields = [...new Set(duplicateFields)];
+          toast.error(`Maklumat berikut telah didaftarkan: ${uniqueFields.join(', ')}`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
       // 1. Generate reference number
       const refNo = await generateRefNumber('baru');
       toast.info('Generating reference number...');
@@ -201,11 +257,11 @@ export default function PendaftaranBaharu() {
           okuCategory: formData.pemohonOKUCategory,
           address: {
             street: formData.pemohonStreet,
-            mukim: formData.pemohonMukim,
-            daerah: formData.pemohonDaerah,
-            poskod: formData.pemohonPoskod,
-            negeri: formData.pemohonNegeri,
-            full_address: `${formData.pemohonStreet}, ${formData.pemohonMukim}, ${formData.pemohonPoskod} ${formData.pemohonDaerah}, ${formData.pemohonNegeri}`
+            mukim: mukim || '',
+            daerah: daerah || 'Hulu Selangor',
+            poskod: '',
+            negeri: 'Selangor',
+            full_address: formData.pemohonStreet
           },
         },
         tanggungan: formData.isTanggungan ? {
@@ -305,7 +361,7 @@ export default function PendaftaranBaharu() {
             </Card>
 
             {/* a) Maklumat Pemohon - WAJIB */}
-            <Card className="border-l-4 border-l-red-500">
+            <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
@@ -406,71 +462,34 @@ export default function PendaftaranBaharu() {
                     </Select>
                   </div>
                   <div className="md:col-span-2">
-                    <Label htmlFor="pemohonStreet">Alamat Jalan *</Label>
+                    <Label htmlFor="pemohonStreet">Alamat *</Label>
                     <Input
                       id="pemohonStreet"
                       name="pemohonStreet"
                       value={formData.pemohonStreet}
-                      onChange={handleInputChange}
+                      onChange={(e) => {
+                        handleInputChange(e);
+                        // Geocode address and auto-pin on map
+                        const address = e.target.value;
+                        if (address.length > 5) {
+                          console.log('Geocoding address:', address);
+                          fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Hulu Selangor, Selangor, Malaysia')}`)
+                            .then(res => res.json())
+                            .then(data => {
+                              console.log('Geocoding result:', data);
+                              if (data && data.length > 0) {
+                                const lat = parseFloat(data[0].lat);
+                                const lon = parseFloat(data[0].lon);
+                                console.log('Setting coordinates:', lat, lon);
+                                setLatitude(lat);
+                                setLongitude(lon);
+                              }
+                            })
+                            .catch(err => console.error('Geocoding error:', err));
+                        }
+                      }}
                       placeholder="No 123, Jalan Merdeka, Taman Sejahtera"
                       required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pemohonMukim">Mukim *</Label>
-                    <Select value={formData.pemohonMukim} onValueChange={(value) => setFormData({...formData, pemohonMukim: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih Mukim" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Ulu Bernam">Ulu Bernam</SelectItem>
-                        <SelectItem value="Sungai Tinggi">Sungai Tinggi</SelectItem>
-                        <SelectItem value="Sungai Gumut">Sungai Gumut</SelectItem>
-                        <SelectItem value="Kuala Kalumpang">Kuala Kalumpang</SelectItem>
-                        <SelectItem value="Kalumpang">Kalumpang</SelectItem>
-                        <SelectItem value="Kerling">Kerling</SelectItem>
-                        <SelectItem value="Buloh Telor">Buloh Telor</SelectItem>
-                        <SelectItem value="Ampang Pechah">Ampang Pechah</SelectItem>
-                        <SelectItem value="Peretak">Peretak</SelectItem>
-                        <SelectItem value="Rasa">Rasa</SelectItem>
-                        <SelectItem value="Batang Kali">Batang Kali</SelectItem>
-                        <SelectItem value="Ulu Yam">Ulu Yam</SelectItem>
-                        <SelectItem value="Serendah">Serendah</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="pemohonPoskod">Poskod</Label>
-                    <Input
-                      id="pemohonPoskod"
-                      name="pemohonPoskod"
-                      value={formData.pemohonPoskod}
-                      onChange={handleInputChange}
-                      placeholder="44000"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pemohonDaerah">Daerah *</Label>
-                    <Input
-                      id="pemohonDaerah"
-                      name="pemohonDaerah"
-                      value={formData.pemohonDaerah}
-                      onChange={handleInputChange}
-                      placeholder="Hulu Selangor"
-                      required
-                      readOnly
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pemohonNegeri">Negeri *</Label>
-                    <Input
-                      id="pemohonNegeri"
-                      name="pemohonNegeri"
-                      value={formData.pemohonNegeri}
-                      onChange={handleInputChange}
-                      placeholder="Selangor"
-                      required
-                      readOnly
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -481,7 +500,7 @@ export default function PendaftaranBaharu() {
                       invalid={boundaryLoaded && !isInsideDistrict}
                       showInstructions={true}
                       onLocationChange={(loc) => {
-                        // Map is independent - don't update address from map
+                        // Only update coordinates, don't change address field
                         setLatitude(loc.lat);
                         setLongitude(loc.lon);
                         if (loc.daerah) setDaerah(loc.daerah);
@@ -508,15 +527,16 @@ export default function PendaftaranBaharu() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-3">
                   <Checkbox 
                     id="isTanggungan"
                     checked={formData.isTanggungan}
                     onCheckedChange={handleCheckboxChange}
+                    className="h-5 w-5 border-2 border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                   />
                   <label
                     htmlFor="isTanggungan"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    className="text-base font-medium leading-none cursor-pointer"
                   >
                     Penjaga kepada OKU
                   </label>
@@ -588,6 +608,7 @@ export default function PendaftaranBaharu() {
                     id="icCopy"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
+                    capture="environment"
                     onChange={(e) => handleFileChange(e, 'icCopy')}
                     required={!documents.icCopy}
                     className="mt-2"
@@ -618,6 +639,7 @@ export default function PendaftaranBaharu() {
                     id="okuCard"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
+                    capture="environment"
                     onChange={(e) => handleFileChange(e, 'okuCard')}
                     required={!documents.okuCard}
                     className="mt-2"
@@ -648,6 +670,7 @@ export default function PendaftaranBaharu() {
                     id="drivingLicense"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
+                    capture="environment"
                     onChange={(e) => handleFileChange(e, 'drivingLicense')}
                     required={!documents.drivingLicense}
                     className="mt-2"
@@ -678,6 +701,7 @@ export default function PendaftaranBaharu() {
                     id="passportPhoto"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
+                    capture="environment"
                     onChange={(e) => handleFileChange(e, 'passportPhoto')}
                     required={!documents.passportPhoto}
                     className="mt-2"
@@ -705,23 +729,20 @@ export default function PendaftaranBaharu() {
             </Card>
 
             {/* Confirmation Checkbox */}
-            <Card className="border-l-4 border-l-purple-500">
-              <CardContent className="py-4">
-                <div className="flex items-start space-x-3">
-                  <Checkbox 
-                    id="confirmDeclaration"
-                    checked={confirmDeclaration}
-                    onCheckedChange={(checked) => setConfirmDeclaration(checked as boolean)}
-                  />
-                  <label
-                    htmlFor="confirmDeclaration"
-                    className="text-sm leading-relaxed cursor-pointer"
-                  >
-                    Saya dengan ini mengesahkan bahawa semua maklumat yang diberikan adalah benar, tepat dan terkini. Sekiranya kenyataan dan dokumen yang diberikan tidak benar atau permohonan ini tidak lengkap, pihak MPHS berhak membatalkan permohonan ini. <span className="text-red-600 font-medium">(Wajib)</span>
-                  </label>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="flex items-start space-x-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+              <Checkbox 
+                id="confirmDeclaration"
+                checked={confirmDeclaration}
+                onCheckedChange={(checked) => setConfirmDeclaration(checked as boolean)}
+                className="h-6 w-6 mt-1 border-2 border-blue-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              />
+              <label
+                htmlFor="confirmDeclaration"
+                className="text-base leading-relaxed cursor-pointer flex-1"
+              >
+                Saya dengan ini mengesahkan bahawa semua maklumat yang diberikan adalah benar, tepat dan terkini. Sekiranya kenyataan dan dokumen yang diberikan tidak benar atau permohonan ini tidak lengkap, pihak MPHS berhak membatalkan permohonan ini. <span className="text-red-600 font-medium">(Wajib)</span>
+              </label>
+            </div>
 
             {/* Submit Buttons */}
             <div className="flex gap-4">
