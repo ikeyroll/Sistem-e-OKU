@@ -59,10 +59,10 @@ function PermohonanBerjayaContent() {
 
               {/* Reference Number */}
               <div className="bg-primary/5 border-2 border-primary/20 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
-                <p className="text-xs sm:text-sm text-muted-foreground mb-2">Nombor ID</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-2">Nombor IC</p>
                 <p className="text-2xl sm:text-3xl font-bold text-primary break-all">{refNo}</p>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-2 sm:mt-3 px-2">
-                  Sila simpan nombor ID ini untuk semakan status
+                  Sila guna nombor IC ini untuk semakan status
                 </p>
               </div>
 
@@ -77,10 +77,6 @@ function PermohonanBerjayaContent() {
                   <li className="flex items-start">
                     <span className="mr-2 flex-shrink-0">•</span>
                     <span>Anda akan menerima status terkini melalui semakan</span>
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-2 flex-shrink-0">•</span>
-                    <span>Gunakan nombor ID untuk semak status permohonan</span>
                   </li>
                   <li className="flex items-start">
                     <span className="mr-2 flex-shrink-0">•</span>

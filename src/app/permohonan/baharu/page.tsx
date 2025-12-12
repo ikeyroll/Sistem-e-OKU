@@ -289,7 +289,7 @@ export default function PendaftaranBaharu() {
       toast.success('Permohonan berjaya dihantar!');
       
       // 6. Redirect to success page
-      router.push(`/permohonan/berjaya?ref=${refNo}&type=new`);
+      router.push(`/permohonan/berjaya?ref=${formData.pemohonIC}&type=new`);
     } catch (error: any) {
       console.error('Error submitting application:', error);
       

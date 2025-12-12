@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload } from 'lucide-react';
+import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateNoSiri } from '@/lib/generateNoSiri';
 import { exportBySession } from '@/lib/csvExport';
@@ -52,6 +52,72 @@ export default function AdminPanel() {
   
   // Check if user is admin_boss
   const [isAdminBoss, setIsAdminBoss] = useState(false);
+  
+  // Selection state
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  
+  // Toggle row selection
+  const toggleRowSelection = (appId: string) => {
+    setSelectedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(appId)) {
+        newSet.delete(appId);
+      } else {
+        newSet.add(appId);
+      }
+      return newSet;
+    });
+  };
+  
+  // Select all rows
+  const toggleSelectAll = () => {
+    if (selectedRows.size === paginatedApps.length) {
+      setSelectedRows(new Set());
+    } else {
+      setSelectedRows(new Set(paginatedApps.map(app => app.id)));
+    }
+  };
+  
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedRows.size === 0) {
+      toast.error(language === 'en' ? 'Please select applications to delete' : 'Sila pilih permohonan untuk dipadam');
+      return;
+    }
+    
+    if (!confirm(`${language === 'en' ? 'Delete' : 'Padam'} ${selectedRows.size} ${language === 'en' ? 'applications?' : 'permohonan?'}`)) {
+      return;
+    }
+    
+    try {
+      for (const id of selectedRows) {
+        await deleteApplication(id);
+      }
+      
+      setApplications(prev => prev.filter(app => !selectedRows.has(app.id)));
+      setSelectedRows(new Set());
+      toast.success(`${selectedRows.size} ${language === 'en' ? 'applications deleted' : 'permohonan dipadam'}`);
+    } catch (error: any) {
+      console.error('Error deleting applications:', error);
+      toast.error(error.message || (language === 'en' ? 'Error deleting applications' : 'Ralat semasa memadam permohonan'));
+    }
+  };
+  
+  // Handle bulk copy
+  const handleBulkCopy = () => {
+    if (selectedRows.size === 0) {
+      toast.error(language === 'en' ? 'Please select applications to copy' : 'Sila pilih permohonan untuk disalin');
+      return;
+    }
+    
+    const selectedApps = applications.filter(app => selectedRows.has(app.id));
+    const copyData = selectedApps.map(app => 
+      `No. Id: ${app.ref_no}\nNo. Siri: ${app.no_siri || '-'}\nNama: ${app.pemohon.name}\nNo. IC: ${app.pemohon.ic}\nJenis: ${app.application_type === 'baru' ? 'Baharu' : 'Pembaharuan'}\nStatus: ${app.status}`
+    ).join('\n\n---\n\n');
+    
+    navigator.clipboard.writeText(copyData);
+    toast.success(`${selectedRows.size} ${language === 'en' ? 'applications copied to clipboard' : 'permohonan disalin ke papan klip'}`);
+  };
   
   useEffect(() => {
     const role = localStorage.getItem('adminRole');
@@ -373,6 +439,7 @@ export default function AdminPanel() {
       setIsDeleting(false);
     }
   };
+
 
   // Handle bulk import from CSV/Excel
   const handleBulkImport = async () => {
@@ -997,10 +1064,48 @@ export default function AdminPanel() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-md border overflow-x-auto">
+                <>
+                  {/* Bulk Actions */}
+                  {selectedRows.size > 0 && (
+                    <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        {selectedRows.size} {language === 'en' ? 'selected' : 'dipilih'}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleBulkCopy}
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          {language === 'en' ? 'Copy' : 'Salin'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleBulkDelete}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {language === 'en' ? 'Delete' : 'Padam'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="rounded-md border overflow-x-auto">
                   <Table className="min-w-[1000px]">
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="whitespace-nowrap w-[50px]">
+                          <input
+                            type="checkbox"
+                            checked={selectedRows.size === paginatedApps.length && paginatedApps.length > 0}
+                            onChange={toggleSelectAll}
+                            className="w-4 h-4 rounded border-primary text-primary focus:ring-primary cursor-pointer"
+                          />
+                        </TableHead>
                         <TableHead className="whitespace-nowrap">{language === 'en' ? 'No. Id' : 'No. Id'}</TableHead>
                         <TableHead className="whitespace-nowrap">{t('admin.serialNo')}</TableHead>
                         <TableHead className="whitespace-nowrap">{language === 'en' ? 'Application' : 'Permohonan'}</TableHead>
@@ -1016,7 +1121,7 @@ export default function AdminPanel() {
                     <TableBody>
                       {filteredApps.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                           {t('admin.noApplications')}
                         </TableCell>
                       </TableRow>
@@ -1031,7 +1136,15 @@ export default function AdminPanel() {
                                        (!app.expiry_date || new Date(app.expiry_date) >= new Date());
                         
                         return (
-                        <TableRow key={app.id}>
+                        <TableRow key={app.id} className={selectedRows.has(app.id) ? 'bg-primary/5' : ''}>
+                          <TableCell className="whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedRows.has(app.id)}
+                              onChange={() => toggleRowSelection(app.id)}
+                              className="w-4 h-4 rounded border-primary text-primary focus:ring-primary cursor-pointer"
+                            />
+                          </TableCell>
                           <TableCell className="font-medium whitespace-nowrap font-mono">{app.ref_no}</TableCell>
                           <TableCell className="whitespace-nowrap">
                             {app.no_siri ? (
@@ -1134,9 +1247,8 @@ export default function AdminPanel() {
                     </TableBody>
                   </Table>
                 </div>
-              )}
-              
-              {/* Pagination Controls */}
+                
+                {/* Pagination Controls */}
               {!loading && filteredApps.length > 0 && (
                 <div className="flex items-center justify-between px-4 py-4 border-t">
                   <div className="text-sm text-muted-foreground">
@@ -1202,6 +1314,8 @@ export default function AdminPanel() {
                     </Button>
                   </div>
                 </div>
+              )}
+                </>
               )}
             </CardContent>
           </Card>

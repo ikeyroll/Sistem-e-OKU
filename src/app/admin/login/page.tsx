@@ -135,11 +135,7 @@ export default function AdminLogin() {
             </Button>
           </form>
           
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded text-sm">
-            <p className="font-semibold text-blue-900 mb-1">{language === 'en' ? 'Demo Credentials:' : 'Kelayakan Demo:'}</p>
-            <p className="text-blue-700">{language === 'en' ? 'Username' : 'Nama Pengguna'}: <code className="bg-white px-2 py-1 rounded">admin</code></p>
-            <p className="text-blue-700">{language === 'en' ? 'Password' : 'Kata Laluan'}: <code className="bg-white px-2 py-1 rounded">mphs2025</code></p>
-          </div>
+          
         </CardContent>
       </Card>
     </div>

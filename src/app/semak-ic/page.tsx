@@ -385,30 +385,10 @@ export default function SemakIC() {
                         <p className="font-semibold">{result.applicationType === 'baru' ? 'Baharu' : 'Pembaharuan'}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Nama</p>
-                        <p className="font-semibold">{result.name}</p>
-                      </div>
-                      <div>
                         <p className="text-muted-foreground">No. IC</p>
                         <p className="font-mono font-semibold">{result.ic}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">No. Telefon</p>
-                        <p className="font-mono font-semibold">{result.phone}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Kad OKU</p>
-                        <p className="font-semibold">{result.okuCard}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">No. Akaun Cukai Taksiran</p>
-                        <p className="font-semibold">{result.taxAccount || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">No. Kereta</p>
-                        <p className="font-mono font-semibold">{result.carReg}</p>
-                      </div>
-                      <div className="col-span-2">
                         <p className="text-muted-foreground">Tarikh Mohon</p>
                         <p className="font-semibold">{result.submittedDate}</p>
                       </div>

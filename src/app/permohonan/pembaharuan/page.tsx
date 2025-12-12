@@ -349,7 +349,7 @@ export default function PembaharuanPermohonan() {
       toast.success('Pembaharuan berjaya dihantar!');
       
       // 6. Redirect to success page
-      router.push(`/permohonan/berjaya?ref=${refNo}&type=renewal`);
+      router.push(`/permohonan/berjaya?ref=${formData.pemohonIC}&type=renewal`);
     } catch (error: any) {
       console.error('Error submitting renewal:', error);
       
