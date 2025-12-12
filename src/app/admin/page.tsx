@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { generateNoSiri } from '@/lib/generateNoSiri';
 import { exportBySession } from '@/lib/csvExport';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { getApplications, approveApplication as approveApp, rejectApplication as rejectApp, markAsReady, markAsCollected, updateApplication, deleteApplication } from '@/lib/api/applications';
+import { getApplications, approveApplication as approveApp, rejectApplication as rejectApp, markAsReady, markAsCollected, updateApplication, deleteApplication, uploadFile } from '@/lib/api/applications';
 import MapPicker from '@/components/MapPicker';
 import { getIssuedCount, getSessionCapacity, setSessionCapacity, getSessionPrefix, setSessionConfig } from '@/lib/api/session';
 import type { Application } from '@/lib/supabase';
@@ -311,6 +311,34 @@ export default function AdminPanel() {
   const [editDaerah, setEditDaerah] = useState<string>('');
   const [editMukim, setEditMukim] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Document upload state
+  const [editDocuments, setEditDocuments] = useState<{
+    icCopy: File | null;
+    okuCard: File | null;
+    drivingLicense: File | null;
+    passportPhoto: File | null;
+    tanggunganSignature: File | null;
+  }>({
+    icCopy: null,
+    okuCard: null,
+    drivingLicense: null,
+    passportPhoto: null,
+    tanggunganSignature: null,
+  });
+  const [currentDocUrls, setCurrentDocUrls] = useState<{
+    icCopy: string;
+    okuCard: string;
+    drivingLicense: string;
+    passportPhoto: string;
+    tanggunganSignature?: string;
+  }>({
+    icCopy: '',
+    okuCard: '',
+    drivingLicense: '',
+    passportPhoto: '',
+    tanggunganSignature: '',
+  });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -560,6 +588,25 @@ export default function AdminPanel() {
     setEditLongitude(app.longitude ?? null);
     setEditDaerah(app.daerah || '');
     setEditMukim(app.mukim || '');
+    
+    // Load current document URLs
+    setCurrentDocUrls({
+      icCopy: app.documents.icCopy || '',
+      okuCard: app.documents.okuCard || '',
+      drivingLicense: app.documents.drivingLicense || '',
+      passportPhoto: app.documents.passportPhoto || '',
+      tanggunganSignature: app.documents.tanggunganSignature || '',
+    });
+    
+    // Reset document files
+    setEditDocuments({
+      icCopy: null,
+      okuCard: null,
+      drivingLicense: null,
+      passportPhoto: null,
+      tanggunganSignature: null,
+    });
+    
     setShowEditModal(true);
   };
 
@@ -570,6 +617,37 @@ export default function AdminPanel() {
     setIsUpdating(true);
     try {
       const fullAddress = `${editFormData.street}, ${editFormData.mukim}, ${editFormData.poskod} ${editFormData.daerah}, ${editFormData.negeri}`;
+      
+      // Upload new documents if provided
+      const uploadedDocs: any = {
+        icCopy: currentDocUrls.icCopy,
+        okuCard: currentDocUrls.okuCard,
+        drivingLicense: currentDocUrls.drivingLicense,
+        passportPhoto: currentDocUrls.passportPhoto,
+        tanggunganSignature: currentDocUrls.tanggunganSignature,
+      };
+
+      // Upload new documents if they were changed
+      if (editDocuments.icCopy) {
+        toast.info(language === 'en' ? 'Uploading IC copy...' : 'Memuat naik salinan IC...');
+        uploadedDocs.icCopy = await uploadFile(editDocuments.icCopy, `${selectedApp.ref_no}/ic-copy`);
+      }
+      if (editDocuments.okuCard) {
+        toast.info(language === 'en' ? 'Uploading OKU card...' : 'Memuat naik kad OKU...');
+        uploadedDocs.okuCard = await uploadFile(editDocuments.okuCard, `${selectedApp.ref_no}/oku-card`);
+      }
+      if (editDocuments.drivingLicense) {
+        toast.info(language === 'en' ? 'Uploading driving license...' : 'Memuat naik lesen memandu...');
+        uploadedDocs.drivingLicense = await uploadFile(editDocuments.drivingLicense, `${selectedApp.ref_no}/license`);
+      }
+      if (editDocuments.passportPhoto) {
+        toast.info(language === 'en' ? 'Uploading passport photo...' : 'Memuat naik gambar pasport...');
+        uploadedDocs.passportPhoto = await uploadFile(editDocuments.passportPhoto, `${selectedApp.ref_no}/photo`);
+      }
+      if (editDocuments.tanggunganSignature) {
+        toast.info(language === 'en' ? 'Uploading guardian signature...' : 'Memuat naik tandatangan tanggungan...');
+        uploadedDocs.tanggunganSignature = await uploadFile(editDocuments.tanggunganSignature, `${selectedApp.ref_no}/tanggungan-signature`);
+      }
       
       const updatedPemohon = {
         name: editFormData.name,
@@ -591,12 +669,14 @@ export default function AdminPanel() {
 
       const updates: Partial<Application> = {
         pemohon: updatedPemohon,
+        documents: uploadedDocs,
         latitude: editLatitude ?? undefined,
         longitude: editLongitude ?? undefined,
         daerah: editFormData.daerah || undefined,
         mukim: editFormData.mukim || undefined,
       };
 
+      toast.info(language === 'en' ? 'Saving changes...' : 'Menyimpan perubahan...');
       const updated = await updateApplication(selectedApp.id, updates);
       
       // Update local state
@@ -924,7 +1004,7 @@ export default function AdminPanel() {
                             ) : app.status === 'Diluluskan' ? (
                               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Diluluskan</Badge>
                             ) : app.status === 'Sedia Diambil' ? (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Sedia Diambil</Badge>
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Sedia Diambil</Badge>
                             ) : app.status === 'Telah Diambil' ? (
                               <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Telah Diambil</Badge>
                             ) : (
@@ -1488,6 +1568,147 @@ export default function AdminPanel() {
                   if (loc.mukim) setEditMukim(loc.mukim);
                 }}
               />
+            </div>
+
+            {/* Document Upload Section */}
+            <div className="space-y-4">
+              <h4 className="font-semibold border-b pb-2">{language === 'en' ? 'Documents' : 'Dokumen'}</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* IC Copy */}
+                <div>
+                  <Label htmlFor="edit-icCopy">{language === 'en' ? 'IC Copy' : 'Salinan Kad Pengenalan'}</Label>
+                  {currentDocUrls.icCopy && (
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.icCopy} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                  )}
+                  <Input
+                    id="edit-icCopy"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setEditDocuments(prev => ({ ...prev, icCopy: e.target.files![0] }));
+                      }
+                    }}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                  </p>
+                </div>
+
+                {/* OKU Card */}
+                <div>
+                  <Label htmlFor="edit-okuCardDoc">{language === 'en' ? 'OKU Card' : 'Kad OKU'}</Label>
+                  {currentDocUrls.okuCard && (
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.okuCard} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                  )}
+                  <Input
+                    id="edit-okuCardDoc"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setEditDocuments(prev => ({ ...prev, okuCard: e.target.files![0] }));
+                      }
+                    }}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                  </p>
+                </div>
+
+                {/* Driving License */}
+                <div>
+                  <Label htmlFor="edit-drivingLicense">{language === 'en' ? 'Driving License' : 'Lesen Memandu'}</Label>
+                  {currentDocUrls.drivingLicense && (
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.drivingLicense} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                  )}
+                  <Input
+                    id="edit-drivingLicense"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setEditDocuments(prev => ({ ...prev, drivingLicense: e.target.files![0] }));
+                      }
+                    }}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                  </p>
+                </div>
+
+                {/* Passport Photo */}
+                <div>
+                  <Label htmlFor="edit-passportPhoto">{language === 'en' ? 'Passport Photo' : 'Gambar Pasport'}</Label>
+                  {currentDocUrls.passportPhoto && (
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.passportPhoto} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                  )}
+                  <Input
+                    id="edit-passportPhoto"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setEditDocuments(prev => ({ ...prev, passportPhoto: e.target.files![0] }));
+                      }
+                    }}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                  </p>
+                </div>
+
+                {/* Tanggungan Signature (if applicable) */}
+                {currentDocUrls.tanggunganSignature && (
+                  <div className="md:col-span-2">
+                    <Label htmlFor="edit-tanggunganSignature">{language === 'en' ? 'Guardian Signature' : 'Tandatangan Tanggungan'}</Label>
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.tanggunganSignature} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                    <Input
+                      id="edit-tanggunganSignature"
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setEditDocuments(prev => ({ ...prev, tanggunganSignature: e.target.files![0] }));
+                        }
+                      }}
+                      className="mt-2"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

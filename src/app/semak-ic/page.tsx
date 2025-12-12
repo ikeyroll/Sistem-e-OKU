@@ -67,6 +67,7 @@ export default function SemakIC() {
         noSiri: app.no_siri,
         name: pemohon.name,
         ic: pemohon.ic,
+        phone: pemohon.phone,
         okuCard: pemohon.okuCard,
         taxAccount: pemohon.taxAccount,
         carReg: pemohon.carReg,
@@ -219,12 +220,12 @@ export default function SemakIC() {
         <div className="container mx-auto px-4 max-w-3xl">
           {/* Header with Logo */}
           <div className="text-center mb-6">
-            {/* Logo MPHS */}
-            <div className="flex justify-center mb-4">
-              <div className="relative w-24 h-24 sm:w-32 sm:h-32">
+            {/* Logo e-OKU */}
+            <div className="flex justify-center mb-3 sm:mb-6">
+              <div className="relative w-90 h-90 sm:w-100 sm:h-100">
                 <Image
-                  src="/mphs.jpg"
-                  alt="Logo MPHS"
+                  src="/e-oku.png"
+                  alt="Logo e-OKU"
                   fill
                   className="object-contain"
                   priority
@@ -233,15 +234,15 @@ export default function SemakIC() {
             </div>
             
             {/* Nama Penuh Majlis */}
-            <div className="mb-2">
-              <h2 className="text-xl sm:text-2xl font-bold text-primary mb-1">
+            <div className="mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-2">
                 Majlis Perbandaran Hulu Selangor
               </h2>
             </div>
             
             {/* Sistem Title */}
-            <div className="border-t border-b border-primary/20 py-2 mb-2">
-              <h1 className="text-2xl sm:text-3xl font-bold mb-1">Sistem e-Stiker Khas</h1>
+            <div className="border-t border-b border-primary/20 py-3 mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-1">Sistem e-OKU</h1>
               <p className="text-muted-foreground text-sm sm:text-base">
                 Daftar pelekat kenderaan OKU secara dalam talian dengan mudah dan cepat
               </p>
@@ -300,11 +301,62 @@ export default function SemakIC() {
               {/* Result */}
               {result && result.found && (
                 <div className="space-y-4 pt-4">
-                  {/* Status Badge */}
-                  <div className="flex justify-center">
-                    {getStatusBadge(result.status)}
-                  </div>
+                  
+                  {/* Status Messages Below Search Button */}
+                  {(result.status === 'Tidak Lengkap' || result.status === 'Tidak Berjaya') && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-red-800 text-center font-semibold">
+                        Permohonan Tidak Lengkap
+                      </p>
+                    </div>
+                  )}
 
+                  {result.status === 'Diluluskan' && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-green-800 text-center font-semibold">
+                        <CheckCircle className="inline h-5 w-5 mr-2" />
+                        Permohonan Diluluskan
+                      </p>
+                    </div>
+                  )}
+
+                  {result.status === 'Dalam Proses' && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-blue-800 text-center font-semibold">
+                        <Clock className="inline h-5 w-5 mr-2" />
+                        Permohonan Sedang Diproses
+                      </p>
+                      <p className="text-blue-700 text-center text-sm mt-2">
+                        Permohonan anda sedang disemak oleh pihak pentadbir. Sila tunggu keputusan dalam masa 5 hari bekerja.
+                      </p>
+                      <p className="text-blue-600 text-center text-xs mt-2">
+                        Anda akan dimaklumkan melalui:<br />
+                        • Status akan dikemaskini apabila permohonan diluluskan<br />
+                        • Status stiker sedia untuk diambil
+                      </p>
+                    </div>
+                  )}
+
+                  {result.status === 'Sedia Diambil' && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-green-800 text-center mb-2 font-semibold">
+                        Pelekat anda sudah sedia untuk diambil di Pejabat MPHS
+                      </p>
+                      <p className="text-green-700 text-center text-sm">
+                        Sila bawa kad pengenalan, kad OKU dan stiker lama ke MPHS
+                      </p>
+                    </div>
+                  )}
+
+                  {result.status === 'Telah Diambil' && (
+                    <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                      <p className="text-purple-800 text-center">
+                        <CheckCircle className="inline h-5 w-5 mr-2" />
+                        Pelekat telah diambil. Terima kasih!
+                      </p>
+                    </div>
+                  )}
+                  
                   {/* No Siri (if available) */}
                   {result.noSiri && (
                     <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
@@ -338,6 +390,10 @@ export default function SemakIC() {
                         <p className="font-mono font-semibold">{result.ic}</p>
                       </div>
                       <div>
+                        <p className="text-muted-foreground">No. Telefon</p>
+                        <p className="font-mono font-semibold">{result.phone}</p>
+                      </div>
+                      <div>
                         <p className="text-muted-foreground">Kad OKU</p>
                         <p className="font-semibold">{result.okuCard}</p>
                       </div>
@@ -355,27 +411,6 @@ export default function SemakIC() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Status Message */}
-                  {result.status === 'Telah Diambil' && (
-                    <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                      <p className="text-purple-800 text-center">
-                        <CheckCircle className="inline h-5 w-5 mr-2" />
-                        Pelekat telah diambil. Terima kasih!
-                      </p>
-                    </div>
-                  )}
-
-                  {result.status === 'Sedia Diambil' && (
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-blue-800 text-center mb-2">
-                        Pelekat anda sudah sedia untuk diambil di Pejabat MPHS
-                      </p>
-                      <p className="text-blue-700 text-center text-sm">
-                        Sila bawa kad pengenalan, kad OKU dan stiker lama ke MPHS
-                      </p>
-                    </div>
-                  )}
 
                   {/* Enhanced Expiry Date Display */}
                   {(result.status === 'Diluluskan' || result.status === 'Sedia Diambil' || result.status === 'Telah Diambil') && result.expiryDate && (() => {
@@ -475,29 +510,6 @@ export default function SemakIC() {
                 {result ? (
                   // User ada rekod - tunjuk button mengikut status
                   <>
-                    {result.status === 'Dalam Proses' && (
-                      <div className="p-6 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0">
-                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                              <Clock className="h-6 w-6 text-blue-600 animate-pulse" />
-                            </div>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-bold text-blue-900 mb-2">⏳ PERMOHONAN SEDANG DIPROSES</h4>
-                            <p className="text-sm text-blue-800 mb-3">
-                              Permohonan anda sedang disemak oleh pihak pentadbir. 
-                              Sila tunggu keputusan dalam masa 5 hari bekerja.
-                            </p>
-                            <div className="text-xs text-blue-700 bg-blue-100 p-2 rounded">
-                              <p className="font-semibold mb-1">Anda akan dimaklumkan melalui:</p>
-                              <p>• Status akan dinyatakan apabila permohonan diluluskan</p>
-                              <p>• Status stiker sedia untuk diambil</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                     
                     {(result.status === 'Diluluskan' || result.status === 'Sedia Diambil' || result.status === 'Telah Diambil') && result.expiryDate && (() => {
                       const timeRemaining = calculateTimeRemaining(result.expiryDate, result.approvedDate);

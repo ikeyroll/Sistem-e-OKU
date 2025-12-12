@@ -66,8 +66,9 @@ export default function Header() {
               variant="ghost"
               size="sm"
               onClick={toggleLanguage}
+              className="font-semibold"
             >
-              <Globe className="h-4 w-4" />
+              {language === 'ms' ? 'EN' : 'BM'}
             </Button>
             <Button
               variant="ghost"
