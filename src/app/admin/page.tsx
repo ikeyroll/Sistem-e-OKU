@@ -415,7 +415,7 @@ export default function AdminPanel() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Handle delete application
   const handleDeleteApplication = async () => {
@@ -1251,10 +1251,34 @@ export default function AdminPanel() {
                 {/* Pagination Controls */}
               {!loading && filteredApps.length > 0 && (
                 <div className="flex items-center justify-between px-4 py-4 border-t">
-                  <div className="text-sm text-muted-foreground">
-                    {language === 'en' 
-                      ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} of ${filteredApps.length} records`
-                      : `Memaparkan ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} daripada ${filteredApps.length} rekod`}
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-muted-foreground">
+                      {language === 'en' 
+                        ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} of ${filteredApps.length} records`
+                        : `Memaparkan ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} daripada ${filteredApps.length} rekod`}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        {language === 'en' ? 'Items per page:' : 'Item setiap halaman:'}
+                      </span>
+                      <Select 
+                        value={itemsPerPage.toString()} 
+                        onValueChange={(value) => {
+                          setItemsPerPage(parseInt(value));
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <SelectTrigger className="w-[80px] h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="25">25</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                          <SelectItem value="100">100</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
