@@ -13,12 +13,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2 } from 'lucide-react';
+import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateNoSiri } from '@/lib/generateNoSiri';
 import { exportBySession } from '@/lib/csvExport';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { getApplications, approveApplication as approveApp, rejectApplication as rejectApp, markAsReady, markAsCollected, updateApplication, deleteApplication, uploadFile } from '@/lib/api/applications';
+import { getApplications, approveApplication as approveApp, rejectApplication as rejectApp, markAsReady, markAsCollected, updateApplication, deleteApplication, uploadFile, bulkImportApplications } from '@/lib/api/applications';
 import MapPicker from '@/components/MapPicker';
 import { getIssuedCount, getSessionCapacity, setSessionCapacity, getSessionPrefix, setSessionConfig } from '@/lib/api/session';
 import type { Application } from '@/lib/supabase';
@@ -341,6 +341,15 @@ export default function AdminPanel() {
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Bulk import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Handle delete application
   const handleDeleteApplication = async () => {
@@ -362,6 +371,79 @@ export default function AdminPanel() {
       toast.error(error.message || (language === 'en' ? 'Error deleting application' : 'Ralat semasa memadam permohonan'));
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // Handle bulk import from CSV/Excel
+  const handleBulkImport = async () => {
+    if (!importFile) {
+      toast.error(language === 'en' ? 'Please select a file' : 'Sila pilih fail');
+      return;
+    }
+
+    console.log('🔄 Starting CSV/Excel import...');
+    console.log('📁 File:', importFile.name, 'Size:', importFile.size);
+
+    setIsImporting(true);
+    try {
+      // Dynamically import xlsx library
+      const XLSX = await import('xlsx');
+      console.log('✅ XLSX library loaded');
+      
+      // Read the file
+      const data = await importFile.arrayBuffer();
+      console.log('✅ File read as array buffer, size:', data.byteLength);
+      
+      const workbook = XLSX.read(data, { type: 'array' });
+      console.log('✅ Workbook parsed, sheets:', workbook.SheetNames);
+      
+      // Get first sheet
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      console.log('✅ Using sheet:', sheetName);
+      
+      // Convert to JSON
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      console.log('✅ Converted to JSON, records:', jsonData.length);
+      console.log('📊 First record sample:', jsonData[0]);
+      
+      if (jsonData.length === 0) {
+        toast.error(language === 'en' ? 'No data found in file' : 'Tiada data dijumpai dalam fail');
+        setIsImporting(false);
+        return;
+      }
+
+      toast.info(`${language === 'en' ? 'Processing' : 'Memproses'} ${jsonData.length} ${language === 'en' ? 'records' : 'rekod'}...`);
+      
+      // Call bulk import API
+      console.log('🚀 Calling bulkImportApplications...');
+      const results = await bulkImportApplications(jsonData);
+      console.log('✅ Import completed:', results);
+      
+      // Show results
+      if (results.success > 0) {
+        toast.success(`${language === 'en' ? 'Successfully imported' : 'Berjaya diimport'}: ${results.success} ${language === 'en' ? 'records' : 'rekod'}`);
+      }
+      
+      if (results.failed > 0) {
+        toast.error(`${language === 'en' ? 'Failed to import' : 'Gagal diimport'}: ${results.failed} ${language === 'en' ? 'records' : 'rekod'}`);
+        console.error('❌ Import errors:', results.errors);
+      }
+      
+      // Reload applications
+      console.log('🔄 Reloading applications...');
+      await loadApplications();
+      console.log('✅ Applications reloaded');
+      
+      // Close modal
+      setShowImportModal(false);
+      setImportFile(null);
+    } catch (error: any) {
+      console.error('❌ Error importing file:', error);
+      console.error('Error stack:', error.stack);
+      toast.error(error.message || (language === 'en' ? 'Error importing file' : 'Ralat semasa mengimport fail'));
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -446,6 +528,17 @@ export default function AdminPanel() {
     
     return matchesSearch && matchesPermohonan && matchesPeringkat && matchesStatus && matchesBulanMohon && matchesTahunMohon;
   });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredApps.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedApps = filteredApps.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, permohonanFilter, peringkatFilter, statusFilter, bulanMohonFilter, tahunMohonFilter]);
 
   const handleApprove = async () => {
     if (!selectedApp) return;
@@ -881,7 +974,19 @@ export default function AdminPanel() {
           {/* Applications Table - MOVED HERE */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>{t('admin.applicationList')} ({filteredApps.length})</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>{t('admin.applicationList')} ({filteredApps.length})</CardTitle>
+                {isAdminBoss && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowImportModal(true)}
+                    className="gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {language === 'en' ? 'Import CSV/Excel' : 'Import CSV/Excel'}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -916,7 +1021,7 @@ export default function AdminPanel() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredApps.map((app, index) => {
+                      paginatedApps.map((app, index) => {
                         const submittedDate = new Date(app.submitted_date);
                         const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
                         const bulanMohon = monthNames[submittedDate.getMonth()];
@@ -1028,6 +1133,74 @@ export default function AdminPanel() {
                     )}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+              
+              {/* Pagination Controls */}
+              {!loading && filteredApps.length > 0 && (
+                <div className="flex items-center justify-between px-4 py-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    {language === 'en' 
+                      ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} of ${filteredApps.length} records`
+                      : `Memaparkan ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} daripada ${filteredApps.length} rekod`}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      {language === 'en' ? 'Previous' : 'Sebelum'}
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="w-8 h-8 p-0"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                      {totalPages > 5 && currentPage < totalPages - 2 && (
+                        <>
+                          <span className="px-2">...</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(totalPages)}
+                            className="w-8 h-8 p-0"
+                          >
+                            {totalPages}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      {language === 'en' ? 'Next' : 'Seterusnya'}
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1779,6 +1952,101 @@ export default function AdminPanel() {
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
                   {language === 'en' ? 'Delete' : 'Padam'}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import CSV/Excel Modal */}
+      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {language === 'en' ? 'Import CSV/Excel File' : 'Import Fail CSV/Excel'}
+            </DialogTitle>
+            <DialogDescription>
+              {language === 'en' 
+                ? 'Upload a CSV or Excel file to bulk import applications. All records will be treated as new applications (Pendaftaran Baru).'
+                : 'Muat naik fail CSV atau Excel untuk import permohonan secara pukal. Semua rekod akan dianggap sebagai permohonan baharu (Pendaftaran Baru).'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="import-file" className="mb-2 block">
+                {language === 'en' ? 'Select File' : 'Pilih Fail'}
+              </Label>
+              <Input
+                id="import-file"
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                disabled={isImporting}
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                {language === 'en' 
+                  ? 'Supported formats: CSV, XLSX, XLS'
+                  : 'Format yang disokong: CSV, XLSX, XLS'}
+              </p>
+            </div>
+
+            {importFile && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <span className="font-medium">{language === 'en' ? 'Selected file:' : 'Fail dipilih:'}</span> {importFile.name}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  {language === 'en' ? 'Size:' : 'Saiz:'} {(importFile.size / 1024).toFixed(2)} KB
+                </p>
+              </div>
+            )}
+
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-xs text-yellow-800">
+                <strong>{language === 'en' ? 'Required columns:' : 'Lajur yang diperlukan:'}</strong>
+              </p>
+              <ul className="text-xs text-yellow-700 mt-1 space-y-1">
+                <li>• NO. SIRI</li>
+                <li>• JENIS</li>
+                <li>• NAMA</li>
+                <li>• IC</li>
+                <li>• TARIKH MOHON</li>
+                <li>• TARIKH LUPUT</li>
+                <li>• SESI</li>
+                <li>• ALAMAT</li>
+                <li>• NO. TEL</li>
+                <li>• PENJAGA</li>
+                <li>• NO. PLAT</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowImportModal(false);
+                setImportFile(null);
+              }}
+              disabled={isImporting}
+            >
+              {language === 'en' ? 'Cancel' : 'Batal'}
+            </Button>
+            <Button 
+              onClick={handleBulkImport}
+              disabled={isImporting || !importFile}
+            >
+              {isImporting ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  {language === 'en' ? 'Importing...' : 'Mengimport...'}
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  {language === 'en' ? 'Import' : 'Import'}
                 </>
               )}
             </Button>

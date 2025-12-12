@@ -313,9 +313,12 @@ export default function SemakIC() {
 
                   {result.status === 'Diluluskan' && (
                     <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-green-800 text-center font-semibold">
+                      <p className="text-green-800 text-center font-semibold mb-2">
                         <CheckCircle className="inline h-5 w-5 mr-2" />
                         Permohonan Diluluskan
+                      </p>
+                      <p className="text-green-700 text-center text-sm">
+                        Pengambilan sticker akan diberitahu kemudian oleh pihak pentadbir.
                       </p>
                     </div>
                   )}

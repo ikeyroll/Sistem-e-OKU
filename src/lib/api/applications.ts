@@ -597,3 +597,201 @@ export async function deleteApplication(id: string) {
   if (error) throw error;
   return true;
 }
+
+// Bulk import applications from CSV/Excel data
+export async function bulkImportApplications(records: any[]) {
+  console.log('📥 bulkImportApplications called with', records.length, 'records');
+  
+  const results = {
+    success: 0,
+    failed: 0,
+    errors: [] as { row: number; error: string; data: any }[]
+  };
+
+  // Get the last reference number once to optimize
+  console.log('🔍 Fetching last reference number...');
+  const { data: lastRefData, error: refError } = await supabase
+    .from('applications')
+    .select('ref_no')
+    .like('ref_no', 'OKU%')
+    .order('ref_no', { ascending: false })
+    .limit(1);
+  
+  if (refError) {
+    console.error('❌ Error fetching last ref number:', refError);
+    throw refError;
+  }
+  
+  let currentSequence = 1;
+  if (lastRefData && lastRefData.length > 0) {
+    const lastRefNo = lastRefData[0].ref_no;
+    currentSequence = parseInt(lastRefNo.replace('OKU', '')) + 1;
+    console.log('✅ Last ref number:', lastRefNo, '-> Starting from:', currentSequence);
+  } else {
+    console.log('✅ No existing records, starting from:', currentSequence);
+  }
+
+  // Process records in batches of 10 for better performance
+  const batchSize = 10;
+  console.log(`📦 Processing ${records.length} records in batches of ${batchSize}`);
+  
+  for (let batchStart = 0; batchStart < records.length; batchStart += batchSize) {
+    const batch = records.slice(batchStart, batchStart + batchSize);
+    console.log(`\n🔄 Processing batch ${Math.floor(batchStart / batchSize) + 1} (records ${batchStart + 1}-${Math.min(batchStart + batchSize, records.length)})`);
+    
+    const batchPromises = batch.map(async (record, batchIndex) => {
+      const i = batchStart + batchIndex;
+      try {
+        // Generate reference number without querying DB each time
+        const refNo = `OKU${(currentSequence + i).toString().padStart(7, '0')}`;
+        console.log(`  📝 Row ${i + 1}: Processing ${record['NAMA'] || 'Unknown'} -> ${refNo}`);
+        
+        // Parse dates - handle Excel date formats and missing dates
+        let tarikhMohon = new Date();
+        let tarikhLuput: Date | undefined = undefined;
+        
+        // Try multiple date column names
+        const mohonDateValue = record['TARIKH MOHON'] || record['TARIKH_MOHON'] || record['tarikhMohon'];
+        if (mohonDateValue) {
+          try {
+            if (typeof mohonDateValue === 'number') {
+              // Excel serial date
+              tarikhMohon = new Date((mohonDateValue - 25569) * 86400 * 1000);
+            } else if (typeof mohonDateValue === 'string') {
+              tarikhMohon = new Date(mohonDateValue);
+            }
+            // Validate date
+            if (isNaN(tarikhMohon.getTime())) {
+              tarikhMohon = new Date(); // Fallback to current date
+            }
+          } catch (e) {
+            tarikhMohon = new Date(); // Fallback to current date
+          }
+        }
+        
+        // Try multiple expiry date column names
+        const luputDateValue = record['TARIKH LUPUT'] || record['TARIKH_LUPUT'] || record['tarikhLuput'];
+        if (luputDateValue) {
+          try {
+            if (typeof luputDateValue === 'number') {
+              // Excel serial date
+              tarikhLuput = new Date((luputDateValue - 25569) * 86400 * 1000);
+            } else if (typeof luputDateValue === 'string') {
+              tarikhLuput = new Date(luputDateValue);
+            }
+            // Validate date
+            if (tarikhLuput && isNaN(tarikhLuput.getTime())) {
+              tarikhLuput = undefined; // Invalid date, set to undefined
+            }
+          } catch (e) {
+            tarikhLuput = undefined;
+          }
+        }
+        
+        // Sanitize and extract data from various column name formats
+        const phoneRaw = record['NO. TEL'] || record['NO TEL'] || record['NO.TEL'] || record['TEL'] || record['TELEFON'] || record['NO. FON'] || record['NO FON'] || '';
+        const phone = typeof phoneRaw === 'string' ? phoneRaw : String(phoneRaw || '');
+        
+        const nameRaw = record['NAMA'] || record['NAME'] || '';
+        const name = typeof nameRaw === 'string' ? nameRaw : String(nameRaw || '');
+        
+        const icRaw = record['IC'] || record['NO. IC'] || record['NO IC'] || '';
+        const ic = typeof icRaw === 'string' ? icRaw : String(icRaw || '');
+        
+        const noSiriRaw = record['NO. SIRI'] || record['NO SIRI'] || record['SIRI'] || '';
+        const noSiri = typeof noSiriRaw === 'string' ? noSiriRaw : String(noSiriRaw || '');
+        
+        const carRegRaw = record['NO. PLAT'] || record['NO PLAT'] || record['PLAT'] || record['NO. KENDERAAN'] || '';
+        const carReg = typeof carRegRaw === 'string' ? carRegRaw : String(carRegRaw || '');
+        
+        const sesiRaw = record['SESI'] || record['KATEGORI'] || '';
+        const sesi = typeof sesiRaw === 'string' ? sesiRaw : String(sesiRaw || '');
+        
+        const alamatRaw = record['ALAMAT'] || record['ADDRESS'] || '';
+        const alamat = typeof alamatRaw === 'string' ? alamatRaw : String(alamatRaw || '');
+        
+        const penjagaRaw = record['PENJAGA'] || record['WARIS'] || record['TANGGUNGAN'] || '';
+        const penjaga = typeof penjagaRaw === 'string' ? penjagaRaw : String(penjagaRaw || '');
+        
+        // Create application object with only required fields filled
+        const application: Partial<Application> = {
+          ref_no: refNo,
+          no_siri: noSiri || undefined,
+          application_type: 'baru',
+          pemohon: {
+            name: name,
+            ic: ic,
+            okuCard: noSiri,
+            phone: phone,
+            carReg: carReg,
+            okuCategory: sesi,
+            address: {
+              street: alamat,
+              mukim: '',
+              daerah: '',
+              poskod: '',
+              negeri: 'Selangor',
+              full_address: alamat
+            },
+            taxAccount: ''
+          },
+          tanggungan: penjaga && penjaga !== 'TIADA' && penjaga !== '' ? {
+            name: penjaga,
+            relation: '',
+            ic: '',
+            company: ''
+          } : undefined,
+          documents: {
+            icCopy: '',
+            okuCard: '',
+            drivingLicense: '',
+            passportPhoto: ''
+          },
+          status: 'Telah Diambil',
+          submitted_date: tarikhMohon.toISOString(),
+          approved_date: tarikhMohon.toISOString(),
+          expiry_date: tarikhLuput ? tarikhLuput.toISOString() : undefined,
+          collected_date: tarikhMohon.toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // Insert into database
+        console.log(`  💾 Row ${i + 1}: Inserting into database...`);
+        await createApplication(application);
+        console.log(`  ✅ Row ${i + 1}: Success!`);
+        return { success: true, row: i + 1 };
+      } catch (error: any) {
+        console.error(`  ❌ Row ${i + 1}: Failed -`, error.message);
+        return {
+          success: false,
+          row: i + 1,
+          error: error.message || 'Unknown error',
+          data: record
+        };
+      }
+    });
+
+    // Wait for batch to complete
+    const batchResults = await Promise.all(batchPromises);
+    
+    // Update results
+    batchResults.forEach(result => {
+      if (result.success) {
+        results.success++;
+      } else {
+        results.failed++;
+        results.errors.push({
+          row: result.row,
+          error: result.error || 'Unknown error',
+          data: result.data
+        });
+      }
+    });
+    
+    console.log(`✅ Batch ${Math.floor(batchStart / batchSize) + 1} completed: ${batchResults.filter(r => r.success).length} success, ${batchResults.filter(r => !r.success).length} failed`);
+  }
+
+  console.log(`\n🎉 Import completed: ${results.success} success, ${results.failed} failed`);
+  return results;
+}
