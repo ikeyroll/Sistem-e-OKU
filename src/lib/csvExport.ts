@@ -28,23 +28,50 @@ export function exportToCSV(applications: Application[], filename?: string): voi
 
   // Convert applications to CSV rows
   const rows = applications.map(app => {
+    // Parse pemohon if it's a string
+    const pemohon = typeof app.pemohon === 'string' ? JSON.parse(app.pemohon) : app.pemohon;
+    
+    // Extract address from JSONB structure
+    let fullAddress = '';
+    if (pemohon?.address) {
+      const addr = pemohon.address;
+      const parts = [
+        addr.street || pemohon.street || pemohon.alamat,
+        addr.mukim || pemohon.mukim,
+        addr.daerah || pemohon.daerah,
+        addr.poskod || pemohon.poskod,
+        addr.negeri || pemohon.negeri || 'Selangor'
+      ].filter(p => p);
+      fullAddress = parts.join(', ');
+    } else if (pemohon?.street || pemohon?.alamat) {
+      const parts = [
+        pemohon.street || pemohon.alamat,
+        pemohon.mukim,
+        pemohon.daerah,
+        pemohon.poskod,
+        pemohon.negeri || 'Selangor'
+      ].filter(p => p);
+      fullAddress = parts.join(', ');
+    }
+    
     // Use submitted_date for session calculation, fallback to approved_date or created_at
     const dateForSession = app.submitted_date || app.approved_date || (app as any).created_at;
     const session = getSession(dateForSession || null);
+    
     return [
       app.ref_no,
       app.no_siri || '-',
       app.application_type === 'baru' ? 'Baharu' : 'Pembaharuan',
-      app.pemohon.ic,
-      app.pemohon.name,
-      app.pemohon.okuCard,
-      app.pemohon.phone,
-      app.pemohon.carReg,
-      app.pemohon.okuCategory,
-      (app.pemohon as any).taxAccount || '-',
-      app.pemohon.address,
+      pemohon.ic || '-',
+      pemohon.name || '-',
+      pemohon.okuCard || '-',
+      pemohon.phone || '-',
+      pemohon.carReg || '-',
+      pemohon.okuCategory || '-',
+      pemohon.taxAccount || '-',
+      fullAddress || '-',
       normalizeStatus(app.status),
-      formatDate(app.submitted_date),
+      app.submitted_date ? formatDate(app.submitted_date) : '-',
       app.approved_date ? formatDate(app.approved_date) : '-',
       app.expiry_date ? formatDate(app.expiry_date) : '-',
       session || '-',

@@ -178,22 +178,20 @@ export async function createApplication(application: Partial<Application>) {
 
 // Update application
 export async function updateApplication(id: string, updates: Partial<Application>) {
-  // Similar filtering for updates
-  const { daerah, mukim, latitude, longitude, ...rest } = updates as any;
-  const dbPayload = { ...rest };
-
-  if (daerah || mukim || latitude || longitude) {
-    // We need to fetch the existing pemohon data to merge correctly if we are doing a partial update
-    // But for now, let's assume if pemohon is in updates, we merge into it
-    if (dbPayload.pemohon) {
-      dbPayload.pemohon = {
-        ...dbPayload.pemohon,
-        daerah: daerah || dbPayload.pemohon.daerah,
-        mukim: mukim || dbPayload.pemohon.mukim,
-        latitude: latitude || dbPayload.pemohon.latitude,
-        longitude: longitude || dbPayload.pemohon.longitude
-      };
-    }
+  // For coordinate updates, we only update lat/lng directly in the table
+  // Don't try to update pemohon or other fields
+  const dbPayload: any = {};
+  
+  if (updates.latitude !== undefined) {
+    dbPayload.latitude = updates.latitude;
+  }
+  if (updates.longitude !== undefined) {
+    dbPayload.longitude = updates.longitude;
+  }
+  
+  // If no valid updates, skip
+  if (Object.keys(dbPayload).length === 0) {
+    return null;
   }
 
   const { data, error } = await supabase
@@ -644,14 +642,23 @@ export async function bulkImportApplications(records: any[]) {
       try {
         // Generate reference number without querying DB each time
         const refNo = `OKU${(currentSequence + i).toString().padStart(7, '0')}`;
-        console.log(`  📝 Row ${i + 1}: Processing ${record['NAMA'] || 'Unknown'} -> ${refNo}`);
+        // Helper function to get value case-insensitively
+        const getValueCaseInsensitive = (obj: any, key: string): any => {
+          const keys = Object.keys(obj);
+          const matchedKey = keys.find(k => k.toLowerCase() === key.toLowerCase());
+          return matchedKey ? obj[matchedKey] : undefined;
+        };
+        
+        // Extract name for logging
+        const nameValue = getValueCaseInsensitive(record, 'Nama');
+        console.log(`  📝 Row ${i + 1}: Processing ${nameValue || 'Unknown'} -> ${refNo}`);
         
         // Parse dates - handle Excel date formats and missing dates
         let tarikhMohon = new Date();
         let tarikhLuput: Date | undefined = undefined;
         
-        // Try multiple date column names
-        const mohonDateValue = record['TARIKH MOHON'] || record['TARIKH_MOHON'] || record['tarikhMohon'];
+        // Case-insensitive date extraction
+        const mohonDateValue = getValueCaseInsensitive(record, 'Tarikh Mohon');
         if (mohonDateValue) {
           try {
             if (typeof mohonDateValue === 'number') {
@@ -669,8 +676,8 @@ export async function bulkImportApplications(records: any[]) {
           }
         }
         
-        // Try multiple expiry date column names
-        const luputDateValue = record['TARIKH LUPUT'] || record['TARIKH_LUPUT'] || record['tarikhLuput'];
+        // Case-insensitive expiry date extraction
+        const luputDateValue = getValueCaseInsensitive(record, 'Tarikh Tamat Tempoh');
         if (luputDateValue) {
           try {
             if (typeof luputDateValue === 'number') {
@@ -688,47 +695,86 @@ export async function bulkImportApplications(records: any[]) {
           }
         }
         
-        // Sanitize and extract data from various column name formats
-        const phoneRaw = record['NO. TEL'] || record['NO TEL'] || record['NO.TEL'] || record['TEL'] || record['TELEFON'] || record['NO. FON'] || record['NO FON'] || '';
+        // Extract data case-insensitively (works with any case: Nama, NAMA, nama, NaMa, etc.)
+        const phoneRaw = getValueCaseInsensitive(record, 'No. Tel') || '';
         const phone = typeof phoneRaw === 'string' ? phoneRaw : String(phoneRaw || '');
         
-        const nameRaw = record['NAMA'] || record['NAME'] || '';
+        const nameRaw = getValueCaseInsensitive(record, 'Nama') || '';
         const name = typeof nameRaw === 'string' ? nameRaw : String(nameRaw || '');
         
-        const icRaw = record['IC'] || record['NO. IC'] || record['NO IC'] || '';
+        const icRaw = getValueCaseInsensitive(record, 'No. IC') || '';
         const ic = typeof icRaw === 'string' ? icRaw : String(icRaw || '');
         
-        const noSiriRaw = record['NO. SIRI'] || record['NO SIRI'] || record['SIRI'] || '';
+        const noSiriRaw = getValueCaseInsensitive(record, 'No. Siri') || '';
         const noSiri = typeof noSiriRaw === 'string' ? noSiriRaw : String(noSiriRaw || '');
         
-        const carRegRaw = record['NO. PLAT'] || record['NO PLAT'] || record['PLAT'] || record['NO. KENDERAAN'] || '';
+        const carRegRaw = getValueCaseInsensitive(record, 'No. Kereta') || '';
         const carReg = typeof carRegRaw === 'string' ? carRegRaw : String(carRegRaw || '');
         
-        const sesiRaw = record['SESI'] || record['KATEGORI'] || '';
+        const sesiRaw = getValueCaseInsensitive(record, 'Sesi') || '';
         const sesi = typeof sesiRaw === 'string' ? sesiRaw : String(sesiRaw || '');
         
-        const alamatRaw = record['ALAMAT'] || record['ADDRESS'] || '';
+        const kategoriOKURaw = getValueCaseInsensitive(record, 'Kategori OKU') || '';
+        const kategoriOKU = typeof kategoriOKURaw === 'string' ? kategoriOKURaw : String(kategoriOKURaw || '');
+        
+        const alamatRaw = getValueCaseInsensitive(record, 'Alamat') || '';
         const alamat = typeof alamatRaw === 'string' ? alamatRaw : String(alamatRaw || '');
         
-        const penjagaRaw = record['PENJAGA'] || record['WARIS'] || record['TANGGUNGAN'] || '';
+        const penjagaRaw = getValueCaseInsensitive(record, 'Penjaga') || '';
         const penjaga = typeof penjagaRaw === 'string' ? penjagaRaw : String(penjagaRaw || '');
         
-        // Create application object with only required fields filled
+        // AUTO-PIN: Extract coordinates from address
+        let latitude: number | undefined = undefined;
+        let longitude: number | undefined = undefined;
+        
+        if (alamat && alamat.length > 10) {
+          try {
+            const { extractCoordinatesFromAddress } = await import('../locationMatcher');
+            const fullAddress = `${alamat}, Hulu Selangor, Selangor`;
+            const coords = extractCoordinatesFromAddress(fullAddress, '', 'Hulu Selangor');
+            
+            if (coords) {
+              latitude = coords.lat;
+              longitude = coords.lon;
+              console.log(`  📍 Row ${i + 1}: Auto-pin successful (${latitude}, ${longitude})`);
+            } else {
+              console.log(`  ⚠️ Row ${i + 1}: No location match for address: "${alamat.substring(0, 50)}..."`);
+              // Fallback to default Hulu Selangor center
+              latitude = 3.5667;
+              longitude = 101.6500;
+            }
+          } catch (err) {
+            console.error(`  ❌ Row ${i + 1}: Auto-pin error:`, err);
+            // Fallback to default center
+            latitude = 3.5667;
+            longitude = 101.6500;
+          }
+        } else {
+          // No address provided, use default center
+          latitude = 3.5667;
+          longitude = 101.6500;
+        }
+        
+        // Create application object with coordinates
         const application: Partial<Application> = {
           ref_no: refNo,
           no_siri: noSiri || undefined,
           application_type: 'baru',
+          latitude: latitude,
+          longitude: longitude,
+          daerah: 'Hulu Selangor',
+          mukim: '',
           pemohon: {
             name: name,
             ic: ic,
             okuCard: noSiri,
             phone: phone,
             carReg: carReg,
-            okuCategory: sesi,
+            okuCategory: kategoriOKU || 'Tidak Diketahui',
             address: {
               street: alamat,
               mukim: '',
-              daerah: '',
+              daerah: 'Hulu Selangor',
               poskod: '',
               negeri: 'Selangor',
               full_address: alamat

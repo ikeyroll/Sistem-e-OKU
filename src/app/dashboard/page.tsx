@@ -130,7 +130,7 @@ const generateDummyApps = (year: number) => {
   return apps;
 };
 
-const generateDummyStats = (year: number, apps: any[]): DashboardStats => {
+const generateDummyStats = (year: number, apps: any[]) => {
   const byStatus = {
     pending: apps.filter(a => a.status === 'Dalam Proses').length,
     approved: apps.filter(a => ['Diluluskan', 'Sedia Diambil', 'Telah Diambil'].includes(a.status)).length,
@@ -257,31 +257,104 @@ export default function Dashboard() {
       // Use real database data
       let apps;
       if (year === 'all') {
-        // Get all applications
         const { getApplications } = await import('@/lib/api/applications');
         apps = await getApplications();
       } else {
-        // Get applications for specific year (session)
         const { getApplications } = await import('@/lib/api/applications');
         const allApps = await getApplications();
         const yearNum = parseInt(year);
         apps = allApps.filter(app => {
-          // Include applications based on submission date OR approval date
           const submittedYear = app.submitted_date ? new Date(app.submitted_date).getFullYear() : null;
           const approvedYear = app.approved_date ? new Date(app.approved_date).getFullYear() : null;
-          
-          // Include if submitted in this year OR approved in this year
           return submittedYear === yearNum || approvedYear === yearNum;
         });
       }
       
-      const dashboardData = generateDummyStats(year === 'all' ? new Date().getFullYear() : parseInt(year), apps);
+      // Import location matcher and update function
+      const { updateApplication } = await import('@/lib/api/applications');
+      const { extractCoordinatesFromAddress } = await import('@/lib/locationMatcher');
+      
+      // Process applications with REAL address-based coordinate assignment
+      const processedApps = [];
+      let matchedCount = 0;
+      let failedCount = 0;
+      
+      console.log(`\n🔄 Processing ${apps.length} applications...`);
+      
+      for (const app of apps) {
+        const pemohon = typeof app.pemohon === 'string' ? JSON.parse(app.pemohon) : app.pemohon;
+        
+        let latitude = app.latitude;
+        let longitude = app.longitude;
+        
+        // Extract coordinates from REAL address if missing
+        if (!latitude || !longitude) {
+          const mukim = app.mukim || pemohon?.address?.mukim || pemohon?.mukim || '';
+          const daerah = app.daerah || pemohon?.address?.daerah || pemohon?.daerah || 'Hulu Selangor';
+          
+          const addressParts = [];
+          if (pemohon?.address?.street) addressParts.push(pemohon.address.street);
+          if (pemohon?.street) addressParts.push(pemohon.street);
+          if (pemohon?.alamat) addressParts.push(pemohon.alamat);
+          if (pemohon?.address?.mukim) addressParts.push(pemohon.address.mukim);
+          else if (pemohon?.mukim) addressParts.push(pemohon.mukim);
+          else if (mukim) addressParts.push(mukim);
+          if (pemohon?.address?.daerah) addressParts.push(pemohon.address.daerah);
+          else if (pemohon?.daerah) addressParts.push(pemohon.daerah);
+          else if (daerah) addressParts.push(daerah);
+          if (pemohon?.address?.poskod) addressParts.push(pemohon.address.poskod);
+          else if (pemohon?.poskod) addressParts.push(pemohon.poskod);
+          addressParts.push('Selangor');
+          
+          const fullAddress = addressParts.filter(p => p).join(', ');
+          
+          const coords = extractCoordinatesFromAddress(fullAddress, mukim, daerah);
+          
+          if (coords) {
+            latitude = coords.lat;
+            longitude = coords.lon;
+            matchedCount++;
+            console.log(`✅ ${app.ref_no}: Matched location`);
+            
+            // Save to database
+            updateApplication(app.id, { latitude, longitude }).catch(err => 
+              console.warn(`Failed to save coords for ${app.ref_no}:`, err)
+            );
+          } else {
+            failedCount++;
+            console.error(`❌ ${app.ref_no}: NO MATCH`);
+            console.error(`   Address: "${fullAddress}"`);
+            
+            // Fallback to default center
+            const angle = Math.random() * 2 * Math.PI;
+            const distance = Math.random() * 0.05;
+            latitude = 3.5667 + distance * Math.cos(angle);
+            longitude = 101.6500 + distance * Math.sin(angle);
+          }
+        }
+        
+        processedApps.push({
+          ...app,
+          pemohon,
+          latitude,
+          longitude,
+          daerah: app.daerah || pemohon?.address?.daerah || 'Hulu Selangor',
+          mukim: app.mukim || pemohon?.address?.mukim || '',
+        });
+      }
+      
+      console.log(`\n📊 LOCATION MATCHING SUMMARY:`);
+      console.log(`   Total: ${apps.length}`);
+      console.log(`   ✅ Matched: ${matchedCount}`);
+      console.log(`   ❌ Failed: ${failedCount}`);
+      console.log(`\n`);
+      
+      const dashboardData = generateDummyStats(year === 'all' ? new Date().getFullYear() : parseInt(year), processedApps);
       
       setStats(dashboardData);
-      setAppsInSession(apps || []);
+      setAppsInSession(processedApps || []);
     } catch (error) {
       console.error('Error loading dashboard:', error);
-      // Set empty data on error
       setStats({
         total: 0,
         berjaya: 0,

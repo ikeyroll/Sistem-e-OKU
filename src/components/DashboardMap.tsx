@@ -11,7 +11,10 @@ export interface DashboardMapProps {
     mukim?: string;
     daerah?: string;
     status?: string;
+    aktif_status?: string;
     pemohon?: { name?: string; okuCategory?: string };
+    oku_type?: string;
+    kategori_oku?: string;
   }>;
   selectedMukim?: string;
   selectedDaerah?: string;
@@ -65,14 +68,13 @@ function ensureLeafletLoaded(): Promise<typeof window & { L: any }> {
 }
 
 // Status color mapping based on application status
+// Green for successful, Red for incomplete
 const getStatusColor = (status?: string): string => {
   switch (status) {
     case 'Diluluskan':
     case 'Sedia Diambil':
     case 'Telah Diambil':
       return '#10b981'; // Green for approved/ready/collected
-    case 'Dalam Proses':
-      return '#f59e0b'; // Yellow for in progress
     case 'Tidak Lengkap':
       return '#ef4444'; // Red for incomplete
     default:
@@ -93,7 +95,13 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Filter applications based on selected mukim/daerah
+  // Exclude 'Dalam Proses' - only show successful and incomplete
   const filteredApps = applications.filter(app => {
+    // Exclude 'Dalam Proses'
+    if (app.status === 'Dalam Proses') {
+      return false;
+    }
+    
     if (!app.latitude || !app.longitude) {
       console.log('App filtered out - no coordinates:', app.id, app);
       return false;
@@ -151,7 +159,16 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
         const L = (w as any).L;
         
         const view = getMapView();
-        mapRef.current = L.map(containerRef.current).setView([view.lat, view.lon], view.zoom);
+        // Validate coordinates before initializing map
+        if (!view || !view.lat || !view.lon || 
+            isNaN(view.lat) || isNaN(view.lon) ||
+            view.lat < -90 || view.lat > 90 || 
+            view.lon < -180 || view.lon > 180) {
+          console.warn('Invalid coordinates for map initialization, using default');
+          mapRef.current = L.map(containerRef.current).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lon], DEFAULT_CENTER.zoom);
+        } else {
+          mapRef.current = L.map(containerRef.current).setView([view.lat, view.lon], view.zoom);
+        }
         
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
@@ -185,7 +202,7 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
     markersRef.current.forEach(m => {
       try {
         if (m && mapRef.current) {
-          m.remove();
+          mapRef.current.removeLayer(m);
         }
       } catch (e) {
         // Ignore removal errors
@@ -199,12 +216,24 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
       const lat = Number(app.latitude);
       const lon = Number(app.longitude);
       
-      if (!lat || !lon || isNaN(lat) || isNaN(lon)) return;
+      // Skip if coordinates are invalid
+      if (!app.latitude || !app.longitude) return;
+      if (isNaN(lat) || isNaN(lon)) return;
       if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
       
       const color = getStatusColor(app.status);
       
       try {
+        // Parse pemohon if it's a string
+        const pemohon = typeof app.pemohon === 'string' ? JSON.parse(app.pemohon) : app.pemohon;
+        
+        // Get OKU type from pemohon JSONB
+        const okuType = pemohon?.okuCategory || app.oku_type || app.kategori_oku || 'N/A';
+        
+        // Get real status from application
+        const realStatus = app.status || 'N/A';
+        const aktivStatus = ['Diluluskan', 'Sedia Diambil', 'Telah Diambil'].includes(realStatus) ? 'Aktif' : 'Tidak Aktif';
+        
         // Create circle marker for each application
         const marker = L.circleMarker([lat, lon], {
           radius: 8,
@@ -215,15 +244,16 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
           fillOpacity: 0.8,
         }).addTo(mapRef.current);
 
-        // Add popup with info
-        const popupContent = `
-          <div style="min-width: 180px; padding: 4px;">
-            <div style="margin-bottom: 6px;"><strong>Nama Pemohon:</strong><br/>${app.pemohon?.name || 'N/A'}</div>
-            <div style="margin-bottom: 6px;"><strong>Kategori OKU:</strong><br/>${app.pemohon?.okuCategory || 'N/A'}</div>
-            <div><strong>Status:</strong><br/><span style="color: ${color};">● ${app.status || 'N/A'}</span></div>
+        // Add hover tooltip with only Status Aktif and Kategori OKU
+        marker.bindTooltip(`
+          <div style="font-size: 12px; padding: 4px;">
+            <strong>Status:</strong> ${aktivStatus}<br/>
+            <strong>Kategori OKU:</strong> ${okuType}
           </div>
-        `;
-        marker.bindPopup(popupContent);
+        `, {
+          direction: 'top',
+          offset: [0, -10]
+        });
         
         markersRef.current.push(marker);
       } catch (e) {
@@ -231,25 +261,33 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
       }
     });
 
-    // Update map view based on selection
+    // Update map view based on selection - only if we have valid coordinates
     const view = getMapView();
-    if (view.lat && view.lon && !isNaN(view.lat) && !isNaN(view.lon)) {
-      mapRef.current.setView([view.lat, view.lon], view.zoom);
+    if (view && view.lat && view.lon && 
+        !isNaN(view.lat) && !isNaN(view.lon) &&
+        view.lat >= -90 && view.lat <= 90 && 
+        view.lon >= -180 && view.lon <= 180) {
+      try {
+        mapRef.current.setView([view.lat, view.lon], view.zoom);
+      } catch (e) {
+        console.warn('Failed to update map view:', e);
+      }
     }
 
   }, [filteredApps, selectedMukim, selectedDaerah, isLoaded]);
 
+  // Calculate successful and incomplete counts
+  const successfulCount = filteredApps.filter(app => 
+    ['Diluluskan', 'Sedia Diambil', 'Telah Diambil'].includes(app.status || '')
+  ).length;
+  const incompleteCount = filteredApps.filter(app => 
+    app.status === 'Tidak Lengkap'
+  ).length;
+
   return (
     <div>
-      {/* Map stats */}
-      {selectedMukim && (
-        <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
-          <strong>Mukim {selectedMukim}:</strong> {filteredApps.length} permohonan berjaya dipaparkan pada peta
-        </div>
-      )}
-
-      {/* Map container */}
-      <div style={{ position: 'relative' }}>
+      {/* Map container with proper z-index */}
+      <div style={{ position: 'relative', zIndex: 1 }}>
         <div
           ref={containerRef}
           style={{
@@ -257,7 +295,9 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
             width: '100%',
             borderRadius: 8,
             overflow: 'hidden',
-            border: '1px solid hsl(var(--border))'
+            border: '1px solid hsl(var(--border))',
+            position: 'relative',
+            zIndex: 1
           }}
         />
       </div>
@@ -265,19 +305,36 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
       {/* Stats and Instructions - Side by Side */}
       <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Stats Box */}
-        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-sm font-medium text-green-800 mb-1">Dipapar Pada Peta</p>
-          <p className="text-xs text-green-700 mb-2">Berjaya sahaja</p>
-          <div className="text-3xl font-bold text-green-700">{filteredApps.length}</div>
+        <div className="p-3 bg-white border border-gray-200 rounded-lg">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Dipapar Pada Peta</p>
+          <p className="text-xs text-gray-600 mb-1">Berjaya dan Tidak Lengkap</p>
+          <div className="text-4xl font-bold text-blue-600">{filteredApps.length}</div>
         </div>
 
         {/* Instructions Box */}
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm font-medium text-blue-800 mb-1">📍 Cara Menggunakan Peta Interaktif (Taburan Permohonan Berjaya):</p>
-          <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
-            <li><strong>Peta ini hanya memaparkan permohonan BERJAYA</strong> (Diluluskan, Sedia Diambil, Telah Diambil)</li>
-            <li><strong>Klik pada bulatan hijau</strong> untuk melihat maklumat permohonan (Nama Pemohon, Kategori OKU, Status)</li>
-            <li>Lokasi berdasarkan alamat yang diisi oleh pemohon dalam borang permohonan</li>
+        <div className="p-3 bg-white border border-blue-300 rounded-lg">
+          <p className="text-sm font-semibold text-blue-700 mb-2">📍 Cara Menggunakan Peta Interaktif:</p>
+          <ul className="text-xs text-gray-700 space-y-1">
+            <li className="flex items-start">
+              <span className="font-semibold mr-1">Circle Hijau:</span>
+              <span>Permohonan Berjaya (Diluluskan, Sedia Diambil, Telah Diambil)</span>
+            </li>
+            <li className="flex items-start">
+              <span className="font-semibold mr-1">Circle Merah:</span>
+              <span>Permohonan Tidak Lengkap</span>
+            </li>
+            <li className="flex items-start">
+              <span className="font-semibold mr-1">Hover pada circle</span>
+              <span>untuk preview maklumat (Status Aktif, Jenis OKU)</span>
+            </li>
+            <li className="flex items-start">
+              <span className="font-semibold mr-1">Klik pada circle</span>
+              <span>untuk maklumat penuh (Nama Pemohon, Status, dll)</span>
+            </li>
+            <li className="flex items-start">
+              <span className="font-semibold mr-1">Dikecualikan:</span>
+              <span>Permohonan "Dalam Proses" tidak dipaparkan</span>
+            </li>
           </ul>
         </div>
       </div>

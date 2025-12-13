@@ -467,30 +467,35 @@ export default function PendaftaranBaharu() {
                       id="pemohonStreet"
                       name="pemohonStreet"
                       value={formData.pemohonStreet}
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         handleInputChange(e);
-                        // Geocode address and auto-pin on map
+                        
+                        // Auto-pin based on address using our location matcher
                         const address = e.target.value;
-                        if (address.length > 5) {
-                          console.log('Geocoding address:', address);
-                          fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Hulu Selangor, Selangor, Malaysia')}`)
-                            .then(res => res.json())
-                            .then(data => {
-                              console.log('Geocoding result:', data);
-                              if (data && data.length > 0) {
-                                const lat = parseFloat(data[0].lat);
-                                const lon = parseFloat(data[0].lon);
-                                console.log('Setting coordinates:', lat, lon);
-                                setLatitude(lat);
-                                setLongitude(lon);
-                              }
-                            })
-                            .catch(err => console.error('Geocoding error:', err));
+                        if (address.length > 10) {
+                          try {
+                            const { extractCoordinatesFromAddress } = await import('@/lib/locationMatcher');
+                            const fullAddress = `${address}, ${mukim || ''}, ${daerah || 'Hulu Selangor'}, Selangor`;
+                            const coords = extractCoordinatesFromAddress(fullAddress, mukim, daerah);
+                            
+                            if (coords) {
+                              console.log('✅ Auto-pin from address:', coords);
+                              setLatitude(coords.lat);
+                              setLongitude(coords.lon);
+                            } else {
+                              console.log('⚠️ No match found for address, keeping current pin');
+                            }
+                          } catch (err) {
+                            console.error('Auto-pin error:', err);
+                          }
                         }
                       }}
                       placeholder="No 123, Jalan Merdeka, Taman Sejahtera"
                       required
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      📍 Pin akan muncul automatik berdasarkan alamat. Anda boleh seret pin untuk betulkan lokasi.
+                    </p>
                   </div>
                   <div className="md:col-span-2">
                     <Label className="mb-2 block">Lokasi Pada Peta *</Label>

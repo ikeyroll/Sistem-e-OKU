@@ -124,13 +124,13 @@ export default function Home() {
       <Header />
       <main className="min-h-screen">
         {/* Hero Section with IC Validation */}
-        <section className="relative bg-gradient-to-br from-primary/10 via-background to-background py-8 sm:py-12">
-          <div className="container mx-auto px-6 sm:px-6 lg:px-8">
+        <section className="relative bg-gradient-to-br from-primary/10 via-background to-background py-2 sm:py-2">
+          <div className="container mx-auto px-3 sm:px-4 lg:px-4">
             <div className="max-w-2xl mx-auto">
-              <div className="text-center mb-8">
+              <div className="text-center mb-1">
                 {/* Logo e-OKU */}
-                <div className="flex justify-center mb-3 sm:mb-6">
-                  <div className="relative w-90 h-90 sm:w-100 sm:h-100">
+                <div className="flex justify-center mb-1 sm:mb-1">
+                  <div className="relative w-48 h-48 sm:w-60 sm:h-60">
                     <Image
                       src="/e-oku.png"
                       alt="Logo e-OKU"
@@ -142,49 +142,49 @@ export default function Home() {
                 </div>
                 
                 {/* Nama Penuh Majlis */}
-                <div className="mb-6">
-                  <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-2">
+                <div className="mb-1">
+                  <h2 className="text-xl sm:text-2xl font-bold text-primary mb-1">
                     {t('hero.mphs')}
                   </h2>
                 </div>
                 
                 {/* Sistem Title */}
-                <div className="border-t border-b border-primary/20 py-4">
-                  <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2">
+                <div className="border-t border-b border-primary/20 py-2">
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-1">
                     {t('hero.systemTitle')}
                   </h1>
-                  <p className="text-base sm:text-lg text-muted-foreground">
+                  <p className="text-xs sm:text-xs text-muted-foreground">
                     {t('hero.subtitle')}
                   </p>
                 </div>
               </div>
 
               <Card className="shadow-lg">
-                <CardHeader className="text-center pb-4">
-                  <CardTitle className="text-xl">{t('hero.enterIC')}</CardTitle>
-                  <CardDescription>{t('hero.checkRegistration')}</CardDescription>
+                <CardHeader className="text-center pb-2 pt-3">
+                  <CardTitle className="text-lg">{t('hero.enterIC')}</CardTitle>
+                  <CardDescription className="text-xs">{t('hero.checkRegistration')}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                <CardContent className="pb-3">
+                  <form onSubmit={handleSubmit} className="space-y-3">
                     <div>
                       <Input
                         type="text"
                         placeholder={t('hero.icPlaceholder')}
                         value={icNumber}
                         onChange={(e) => setIcNumber(e.target.value)}
-                        className="text-lg h-12"
+                        className="text-base h-10"
                         disabled={isChecking}
                       />
                     </div>
 
                     <Button 
                       type="submit" 
-                      className="w-full h-12 text-lg"
+                      className="w-full h-10 text-base"
                       disabled={isChecking || !icNumber.trim()}
                     >
                       {isChecking ? (
                         <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           {t('hero.checking')}
                         </>
                       ) : (
@@ -195,23 +195,23 @@ export default function Home() {
 
                   {/* Show buttons after checking */}
                   {showButtons && (
-                    <div className="mt-6 space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="mt-3 space-y-2 animate-in fade-in slide-in-from-top-4 duration-500">
                       {userExists === null ? (
                         <>
-                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-center">
-                            <AlertCircle className="h-5 w-5 text-red-600 mx-auto mb-2" />
-                            <p className="text-red-800 font-medium">
+                          <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-center">
+                            <AlertCircle className="h-4 w-4 text-red-600 mx-auto mb-1" />
+                            <p className="text-xs text-red-800 font-medium">
                               Format No. Kad Pengenalan tidak sah
                             </p>
-                            <p className="text-red-600 text-sm mt-1">
+                            <p className="text-red-600 text-xs mt-1">
                               Sila masukkan No. Kad Pengenalan yang betul (contoh: 990101-01-1234)
                             </p>
                           </div>
                         </>
                       ) : userExists ? (
                         <>
-                          <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
-                            <p className="text-green-800 font-medium mb-3">
+                          <div className="p-2 bg-green-50 border border-green-200 rounded-lg text-center">
+                            <p className="text-sm text-green-800 font-medium mb-2">
                               {t('hero.recordFound')}
                             </p>
                           </div>
@@ -220,25 +220,25 @@ export default function Home() {
                               sessionStorage.setItem('applicantIC', icNumber);
                               router.push('/semak-ic');
                             }}
-                            className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700"
+                            className="w-full h-10 text-base bg-blue-600 hover:bg-blue-700"
                           >
                             {t('hero.viewDetails')}
-                            <ArrowRight className="ml-2 h-5 w-5" />
+                            <ArrowRight className="ml-2 h-4 w-4" />
                           </Button>
                         </>
                       ) : (
                         <>
-                          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-center">
-                            <p className="text-amber-800 font-medium mb-3">
+                          <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-center">
+                            <p className="text-sm text-amber-800 font-medium mb-2">
                               {t('hero.noRecord')}
                             </p>
                           </div>
                           <Button 
                             onClick={handleNewRegistration}
-                            className="w-full h-12 text-lg bg-green-600 hover:bg-green-700"
+                            className="w-full h-10 text-base bg-green-600 hover:bg-green-700"
                           >
                             {t('hero.newApplication')}
-                            <ArrowRight className="ml-2 h-5 w-5" />
+                            <ArrowRight className="ml-2 h-4 w-4" />
                           </Button>
                         </>
                       )}

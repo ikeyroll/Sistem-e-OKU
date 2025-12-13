@@ -19,6 +19,7 @@ import { generateNoSiri } from '@/lib/generateNoSiri';
 import { exportBySession } from '@/lib/csvExport';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getApplications, approveApplication as approveApp, rejectApplication as rejectApp, markAsReady, markAsCollected, updateApplication, deleteApplication, uploadFile, bulkImportApplications } from '@/lib/api/applications';
+import { updateOkuCategoryFromSessionToLainLain } from '@/lib/api/updateOkuCategory';
 import MapPicker from '@/components/MapPicker';
 import { getIssuedCount, getSessionCapacity, setSessionCapacity, getSessionPrefix, setSessionConfig } from '@/lib/api/session';
 import type { Application } from '@/lib/supabase';
@@ -480,11 +481,111 @@ export default function AdminPanel() {
         return;
       }
 
-      toast.info(`${language === 'en' ? 'Processing' : 'Memproses'} ${jsonData.length} ${language === 'en' ? 'records' : 'rekod'}...`);
+      // Validate CSV columns match expected format
+      const expectedColumns = [
+        'No. Siri',
+        'Jenis',
+        'No. IC',
+        'Nama',
+        'No. Kad OKU',
+        'No. Tel',
+        'No. Kereta',
+        'Kategori OKU',
+        'No. Akaun Cukai Taksiran',
+        'Alamat',
+        'Status',
+        'Tarikh Mohon',
+        'Tarikh Lulus',
+        'Tarikh Tamat Tempoh',
+        'Sesi'
+      ];
       
-      // Call bulk import API
+      const firstRow = jsonData[0] as any;
+      const actualColumns = Object.keys(firstRow);
+      
+      console.log('📋 Expected columns:', expectedColumns);
+      console.log('📋 Actual columns from file:', actualColumns);
+      
+      // Normalize column names for comparison (trim spaces, normalize case)
+      const normalizeCol = (col: string) => col.trim().toLowerCase().replace(/\s+/g, ' ');
+      
+      // Create flexible column mapping - accept variations (case-insensitive)
+      const columnAliases: Record<string, string[]> = {
+        'No. Siri': ['no. siri', 'no siri', 'siri', 'no.siri', 'nosiri'],
+        'Jenis': ['jenis', 'type', 'jenis permohonan'],
+        'No. IC': ['no. ic', 'no ic', 'ic', 'no.ic', 'mykad', 'noic'],
+        'Nama': ['nama', 'name'],
+        'No. Kad OKU': ['no. kad oku', 'no kad oku', 'kad oku', 'no.kad oku', 'oku card', 'nokadoku'],
+        'No. Tel': ['no. tel', 'no tel', 'tel', 'telefon', 'phone', 'no. fon', 'no fon', 'no.tel', 'notel'],
+        'No. Kereta': ['no. kereta', 'no kereta', 'kereta', 'no. plat', 'no plat', 'plat', 'no.kereta', 'nokereta'],
+        'Kategori OKU': ['kategori oku', 'kategori', 'jenis oku', 'oku category', 'kategorioku'],
+        'No. Akaun Cukai Taksiran': ['no. akaun cukai taksiran', 'no akaun cukai taksiran', 'akaun cukai', 'cukai taksiran', 'tax account'],
+        'Alamat': ['alamat', 'address'],
+        'Status': ['status'],
+        'Tarikh Mohon': ['tarikh mohon', 'tarikh permohonan', 'date applied', 'tarikh mo', 'tarikhmohon'],
+        'Tarikh Lulus': ['tarikh lulus', 'tarikh lulusan', 'date approved', 'tarikh lu', 'tarikhlulus', 'tarikhlulusan'],
+        'Tarikh Tamat Tempoh': ['tarikh tamat tempoh', 'tarikh luput', 'expiry date', 'tarikh tamat', 'tarikhtamattempoh'],
+        'Sesi': ['sesi', 'session', 'tahun sesi', 'tahun']
+      };
+      
+      // Map actual columns to expected columns using aliases
+      const columnMapping: Record<string, string> = {};
+      actualColumns.forEach(actual => {
+        const normalizedActual = normalizeCol(actual);
+        for (const [expected, aliases] of Object.entries(columnAliases)) {
+          if (aliases.includes(normalizedActual)) {
+            columnMapping[actual] = expected;
+            break;
+          }
+        }
+      });
+      
+      console.log('🔄 Column mapping:', columnMapping);
+      
+      // Check if all expected columns are mapped
+      const mappedExpected = Object.values(columnMapping);
+      const missingColumns = expectedColumns.filter(col => !mappedExpected.includes(col));
+      const unmappedActual = actualColumns.filter(col => !columnMapping[col]);
+      
+      if (missingColumns.length > 0) {
+        let errorMsg = language === 'en' 
+          ? '❌ Format CSV tidak lengkap!\n\n' 
+          : '❌ Format CSV tidak lengkap!\n\n';
+        
+        // Only show missing columns
+        errorMsg += '❌ ' + (language === 'en' ? 'Kolum wajib yang hilang: ' : 'Kolum wajib yang hilang: ') + missingColumns.join(', ');
+        
+        errorMsg += '\n\n💡 ' + (language === 'en' 
+          ? 'Sila muat turun templat CSV dari dashboard untuk melihat format yang betul.' 
+          : 'Sila muat turun templat CSV dari dashboard untuk melihat format yang betul.');
+        
+        toast.error(errorMsg, { 
+          duration: Infinity, // Don't auto-dismiss
+          closeButton: true,  // Show close button
+          dismissible: true   // Allow manual dismiss
+        });
+        setIsImporting(false);
+        return;
+      }
+      
+      // Remap the data to use standard column names
+      console.log('🔄 Remapping data to standard column names...');
+      const remappedData = jsonData.map((row: any) => {
+        const newRow: any = {};
+        Object.keys(row).forEach(key => {
+          const standardKey = columnMapping[key] || key;
+          newRow[standardKey] = row[key];
+        });
+        return newRow;
+      });
+      
+      console.log('✅ Data remapped, sample:', remappedData[0]);
+
+      toast.info(`${language === 'en' ? 'Processing' : 'Memproses'} ${remappedData.length} ${language === 'en' ? 'records' : 'rekod'}...`);
+      
+      // Call bulk import API with remapped data
       console.log('🚀 Calling bulkImportApplications...');
-      const results = await bulkImportApplications(jsonData);
+      const results = await bulkImportApplications(remappedData);
       console.log('✅ Import completed:', results);
       
       // Show results
@@ -2099,7 +2200,7 @@ export default function AdminPanel() {
 
       {/* Import CSV/Excel Modal */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {language === 'en' ? 'Import CSV/Excel File' : 'Import Fail CSV/Excel'}
@@ -2111,7 +2212,7 @@ export default function AdminPanel() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-2">
             <div>
               <Label htmlFor="import-file" className="mb-2 block">
                 {language === 'en' ? 'Select File' : 'Pilih Fail'}
@@ -2142,22 +2243,36 @@ export default function AdminPanel() {
             )}
 
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-xs text-yellow-800">
-                <strong>{language === 'en' ? 'Required columns:' : 'Lajur yang diperlukan:'}</strong>
+              <p className="text-xs text-yellow-800 mb-2">
+                <strong>{language === 'en' ? 'Required columns (in exact order):' : 'Lajur yang diperlukan (mengikut susunan tepat):'}</strong>
               </p>
-              <ul className="text-xs text-yellow-700 mt-1 space-y-1">
-                <li>• NO. SIRI</li>
-                <li>• JENIS</li>
-                <li>• NAMA</li>
-                <li>• IC</li>
-                <li>• TARIKH MOHON</li>
-                <li>• TARIKH LUPUT</li>
-                <li>• SESI</li>
-                <li>• ALAMAT</li>
-                <li>• NO. TEL</li>
-                <li>• PENJAGA</li>
-                <li>• NO. PLAT</li>
-              </ul>
+              <div className="max-h-40 overflow-y-auto">
+                <ol className="text-xs text-yellow-700 space-y-1 ml-4 list-decimal">
+                  <li>No. Siri</li>
+                  <li>Jenis</li>
+                  <li>No. IC</li>
+                  <li>Nama</li>
+                  <li>No. Kad OKU</li>
+                  <li>No. Tel</li>
+                  <li>No. Kereta</li>
+                  <li>Kategori OKU</li>
+                  <li>No. Akaun Cukai Taksiran</li>
+                  <li>Alamat</li>
+                  <li>Status</li>
+                  <li>Tarikh Mohon</li>
+                  <li>Tarikh Lulus</li>
+                  <li>Tarikh Tamat Tempoh</li>
+                  <li>Sesi</li>
+                </ol>
+              </div>
+              <p className="text-xs text-yellow-700 mt-3">
+                <strong>{language === 'en' ? 'Note:' : 'Nota:'}</strong> {language === 'en' 
+                  ? 'Download CSV from Dashboard to get the correct format template.'
+                  : 'Muat turun CSV dari Dashboard untuk mendapat templat format yang betul.'}
+              </p>
+              <p className="text-xs text-yellow-700 mt-2">
+                <strong>Kategori OKU yang sah:</strong> Penglihatan, Pendengaran, Fizikal, Pembelajaran, Mental, Pelbagai Kecacatan, Lain-lain
+              </p>
             </div>
           </div>
 
