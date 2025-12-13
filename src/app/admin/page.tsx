@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload, Copy, AlertCircle } from 'lucide-react';
+import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload, Copy, AlertCircle, Users, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateNoSiri } from '@/lib/generateNoSiri';
 import { exportBySession } from '@/lib/csvExport';
@@ -1007,18 +1007,18 @@ export default function AdminPanel() {
               <h1 className="text-3xl font-bold mb-2">{isAdminBoss ? (language === 'en' ? 'Super Admin' : 'Super Admin') : t('admin.title')}</h1>
               <p className="text-muted-foreground">{t('admin.subtitle')}</p>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex gap-2">
               {isAdminBoss && (
                 <>
-                  <Button variant="outline" onClick={() => router.push('/admin/manage-admins')} className="h-9 w-full">
+                  <Button onClick={() => router.push('/admin/manage-admins')} className="h-9 w-50">
                     {language === 'en' ? 'Manage Admins' : 'Urus Admin'}
                   </Button>
-                  <Button variant="outline" onClick={() => router.push('/admin/manage-footer')} className="h-9 w-full">
+                  <Button onClick={() => router.push('/admin/manage-footer')} className="h-9 w-50">
                     {language === 'en' ? 'Footer' : 'Footer'}
                   </Button>
                 </>
               )}
-              <Button variant="outline" onClick={handleLogout} className="h-9 w-full">
+              <Button variant="destructive" onClick={handleLogout} className="h-9 w-50">
                 {t('admin.logout')}
               </Button>
             </div>
@@ -1156,11 +1156,10 @@ export default function AdminPanel() {
                 <CardTitle>{t('admin.applicationList')} ({filteredApps.length})</CardTitle>
                 {isAdminBoss && (
                   <Button 
-                    variant="outline" 
                     onClick={() => setShowImportModal(true)}
-                    className="h-9 w-full gap-2"
+                    className="h-9 w-48"
                   >
-                    <Upload className="w-4 h-4" />
+                    <Upload className="w-4 h-4 mr-2" />
                     {language === 'en' ? 'Import CSV/Excel' : 'Import CSV/Excel'}
                   </Button>
                 )}
@@ -1184,17 +1183,15 @@ export default function AdminPanel() {
                       </span>
                       <div className="flex gap-2">
                         <Button
-                          variant="outline"
                           onClick={handleBulkCopy}
-                          className="h-9 w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          className="h-9 w-full"
                         >
                           <Copy className="w-4 h-4 mr-2" />
                           {language === 'en' ? 'Copy' : 'Salin'}
                         </Button>
                         <Button
-                          variant="outline"
                           onClick={handleBulkDelete}
-                          className="h-9 w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="h-9 w-full"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           {language === 'en' ? 'Delete' : 'Padam'}
@@ -1586,28 +1583,33 @@ export default function AdminPanel() {
                     : 'Muat turun data peta permohonan berjaya dalam format KML (sama seperti peta interaktif dashboard)'}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                  <div>
-                    <Label className="mb-2 block">{language === 'en' ? 'Session' : 'Sesi'}</Label>
-                    <Select value={kmlSession} onValueChange={setKmlSession}>
-                      <SelectTrigger className="w-full h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{language === 'en' ? 'All Sessions' : 'Semua Sesi'}</SelectItem>
-                        {getKMLSessions().map(session => (
-                          <SelectItem key={session} value={session}>
-                            Sesi {session}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Button onClick={handleKMLDownload} className="h-9 w-full">
-                      <Download className="h-4 w-4 mr-2" />
-                      {language === 'en' ? 'Download KML' : 'Muat Turun KML'}
-                    </Button>
-                  </div>
+<div className="flex items-end gap-3">
+  <div>
+    <Label className="mb-1 block">
+      {language === 'en' ? 'Session' : 'Sesi'}
+    </Label>
+    <Select value={kmlSession} onValueChange={setKmlSession}>
+      <SelectTrigger className="h-9 w-55">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">
+          {language === 'en' ? 'All Sessions' : 'Semua Sesi'}
+        </SelectItem>
+        {getKMLSessions().map(session => (
+          <SelectItem key={session} value={session}>
+            Sesi {session}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+
+  <Button onClick={handleKMLDownload} className="h-9 w-55">
+    <Download className="h-4 w-4 mr-2" />
+    {language === 'en' ? 'Download KML' : 'Muat Turun KML'}
+  </Button>
+</div>
                 </div>
               </div>
             </CardContent>
