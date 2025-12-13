@@ -1007,18 +1007,18 @@ export default function AdminPanel() {
               <h1 className="text-3xl font-bold mb-2">{isAdminBoss ? (language === 'en' ? 'Super Admin' : 'Super Admin') : t('admin.title')}</h1>
               <p className="text-muted-foreground">{t('admin.subtitle')}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {isAdminBoss && (
                 <>
-                  <Button variant="outline" onClick={() => router.push('/admin/manage-admins')} className="w-full">
+                  <Button variant="outline" onClick={() => router.push('/admin/manage-admins')} className="h-9 w-full">
                     {language === 'en' ? 'Manage Admins' : 'Urus Admin'}
                   </Button>
-                  <Button variant="outline" onClick={() => router.push('/admin/manage-footer')} className="w-full">
+                  <Button variant="outline" onClick={() => router.push('/admin/manage-footer')} className="h-9 w-full">
                     {language === 'en' ? 'Footer' : 'Footer'}
                   </Button>
                 </>
               )}
-              <Button variant="outline" onClick={handleLogout} className="w-full">
+              <Button variant="outline" onClick={handleLogout} className="h-9 w-full">
                 {t('admin.logout')}
               </Button>
             </div>
@@ -1039,7 +1039,7 @@ export default function AdminPanel() {
                     placeholder={t('admin.searchPlaceholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 w-full"
+                    className="h-9 pl-10 w-full"
                   />
                 </div>
               </div>
@@ -1052,7 +1052,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Application' : 'Permohonan'}</Label>
                     <Select value={permohonanFilter} onValueChange={setPermohonanFilter}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1067,7 +1067,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Stage' : 'Peringkat'}</Label>
                     <Select value={peringkatFilter} onValueChange={setPeringkatFilter}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1085,7 +1085,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Status' : 'Status'}</Label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1100,7 +1100,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Month Applied' : 'Bulan Mohon'}</Label>
                     <Select value={bulanMohonFilter} onValueChange={setBulanMohonFilter}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1125,7 +1125,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Year Applied' : 'Tahun Mohon'}</Label>
                     <Select value={tahunMohonFilter} onValueChange={setTahunMohonFilter}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1158,7 +1158,7 @@ export default function AdminPanel() {
                   <Button 
                     variant="outline" 
                     onClick={() => setShowImportModal(true)}
-                    className="gap-2"
+                    className="h-9 w-full gap-2"
                   >
                     <Upload className="w-4 h-4" />
                     {language === 'en' ? 'Import CSV/Excel' : 'Import CSV/Excel'}
@@ -1184,19 +1184,17 @@ export default function AdminPanel() {
                       </span>
                       <div className="flex gap-2">
                         <Button
-                          size="sm"
                           variant="outline"
                           onClick={handleBulkCopy}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          className="h-9 w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                         >
                           <Copy className="w-4 h-4 mr-2" />
                           {language === 'en' ? 'Copy' : 'Salin'}
                         </Button>
                         <Button
-                          size="sm"
                           variant="outline"
                           onClick={handleBulkDelete}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="h-9 w-full text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           {language === 'en' ? 'Delete' : 'Padam'}
@@ -1504,6 +1502,7 @@ export default function AdminPanel() {
                     value={serialPrefix}
                     onChange={(e) => setSerialPrefix(e.target.value.toUpperCase())}
                     placeholder="MPHS"
+                    className="h-9"
                   />
                 </div>
                 <div>
@@ -1512,11 +1511,12 @@ export default function AdminPanel() {
                     value={serialYear}
                     onChange={(e) => setSerialYear(e.target.value)}
                     placeholder="2025"
+                    className="h-9"
                   />
                 </div>
                 <div>
                   <Label className="mb-2 block">{language === 'en' ? 'Issued' : 'Telah Dikeluarkan'}</Label>
-                  <Input value={issuedCount} disabled className="bg-muted" />
+                  <Input value={issuedCount} disabled className="h-9 bg-muted" />
                 </div>
                 <div>
                   <Label className="mb-2 block">{language === 'en' ? 'Capacity (Max)' : 'Kapasiti (Maks)'}</Label>
@@ -1525,6 +1525,7 @@ export default function AdminPanel() {
                     value={capacityInput}
                     onChange={(e) => setCapacityInput(e.target.value)}
                     min={issuedCount}
+                    className="h-9"
                   />
                 </div>
                 <div>
@@ -1553,7 +1554,7 @@ export default function AdminPanel() {
                         setSessionLoading(false);
                       }
                     }}
-                    className="w-full"
+                    className="h-9 w-full"
                   >
                     {sessionLoading ? (language === 'en' ? 'Saving...' : 'Menyimpan...') : (language === 'en' ? 'Update Configuration' : 'Kemaskini Kapasiti')}
                   </Button>
@@ -1602,7 +1603,7 @@ export default function AdminPanel() {
                     </Select>
                   </div>
                   <div>
-                    <Button onClick={handleKMLDownload} className="w-full h-9">
+                    <Button onClick={handleKMLDownload} className="h-9 w-full">
                       <Download className="h-4 w-4 mr-2" />
                       {language === 'en' ? 'Download KML' : 'Muat Turun KML'}
                     </Button>
