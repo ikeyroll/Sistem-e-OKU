@@ -23,6 +23,7 @@ import { updateOkuCategoryFromSessionToLainLain } from '@/lib/api/updateOkuCateg
 import MapPicker from '@/components/MapPicker';
 import { getIssuedCount, getSessionCapacity, setSessionCapacity, getSessionPrefix, setSessionConfig } from '@/lib/api/session';
 import type { Application } from '@/lib/supabase';
+import { formatIC } from '@/lib/formatters';
 
 // No mock data - using Supabase only
 
@@ -113,7 +114,7 @@ export default function AdminPanel() {
     
     const selectedApps = applications.filter(app => selectedRows.has(app.id));
     const copyData = selectedApps.map(app => 
-      `No. Id: ${app.ref_no}\nNo. Siri: ${app.no_siri || '-'}\nNama: ${app.pemohon.name}\nNo. IC: ${app.pemohon.ic}\nJenis: ${app.application_type === 'baru' ? 'Baharu' : 'Pembaharuan'}\nStatus: ${app.status}`
+      `No. Id: ${app.ref_no}\nNo. Siri: ${app.no_siri || '-'}\nNama: ${app.pemohon.name}\nNo. IC: ${formatIC(app.pemohon.ic)}\nJenis: ${app.application_type === 'baru' ? 'Baharu' : 'Pembaharuan'}\nStatus: ${app.status}`
     ).join('\n\n---\n\n');
     
     navigator.clipboard.writeText(copyData);
@@ -1340,7 +1341,7 @@ export default function AdminPanel() {
                           <TableCell className="whitespace-nowrap">{bulanMohon}</TableCell>
                           <TableCell className="whitespace-nowrap">{tahunMohon}</TableCell>
                           <TableCell className="min-w-[200px]">{app.pemohon.name}</TableCell>
-                          <TableCell className="whitespace-nowrap font-mono text-sm">{app.pemohon.ic}</TableCell>
+                          <TableCell className="whitespace-nowrap font-mono text-sm">{formatIC(app.pemohon.ic)}</TableCell>
                         </TableRow>
                         );
                       })
@@ -1576,7 +1577,7 @@ export default function AdminPanel() {
 
       {/* Detail Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -1624,7 +1625,7 @@ export default function AdminPanel() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div><span className="text-muted-foreground">Nama:</span> {selectedApp.pemohon.name}</div>
-                  <div><span className="text-muted-foreground">IC:</span> {selectedApp.pemohon.ic}</div>
+                  <div><span className="text-muted-foreground">IC:</span> <span className="font-mono">{formatIC(selectedApp.pemohon.ic)}</span></div>
                   <div><span className="text-muted-foreground">Kad OKU:</span> {selectedApp.pemohon.okuCard}</div>
                   <div><span className="text-muted-foreground">Telefon:</span> {selectedApp.pemohon.phone}</div>
                   <div><span className="text-muted-foreground">No. Kereta:</span> {selectedApp.pemohon.carReg}</div>

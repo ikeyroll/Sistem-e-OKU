@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { reverseGeocode, extractDaerahMukim } from '@/lib/geo';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface DashboardMapProps {
   applications: Array<{
@@ -68,7 +69,7 @@ function ensureLeafletLoaded(): Promise<typeof window & { L: any }> {
 }
 
 // Status color mapping based on application status
-// Green for successful, Red for incomplete
+// Green for successful, Red for incomplete/failed
 const getStatusColor = (status?: string): string => {
   switch (status) {
     case 'Diluluskan':
@@ -76,9 +77,9 @@ const getStatusColor = (status?: string): string => {
     case 'Telah Diambil':
       return '#10b981'; // Green for approved/ready/collected
     case 'Tidak Lengkap':
-      return '#ef4444'; // Red for incomplete
+    case 'Ditolak':
     default:
-      return '#6b7280'; // Gray for unknown
+      return '#ef4444'; // Red for incomplete/rejected/in-process/unknown
   }
 };
 
@@ -89,6 +90,7 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
   onLocationChange,
   height = 500,
 }) => {
+  const { language } = useLanguage();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -244,11 +246,11 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
           fillOpacity: 0.8,
         }).addTo(mapRef.current);
 
-        // Add hover tooltip with only Status Aktif and Kategori OKU
+        // Add hover tooltip with only Status Aktif and Kategori OKU (language toggle)
         marker.bindTooltip(`
           <div style="font-size: 12px; padding: 4px;">
-            <strong>Status:</strong> ${aktivStatus}<br/>
-            <strong>Kategori OKU:</strong> ${okuType}
+            <strong>${language === 'en' ? 'Status' : 'Status'}:</strong> ${language === 'en' ? (aktivStatus === 'Aktif' ? 'Active' : 'Inactive') : aktivStatus}<br/>
+            <strong>${language === 'en' ? 'OKU Category' : 'Kategori OKU'}:</strong> ${okuType}
           </div>
         `, {
           direction: 'top',
@@ -274,7 +276,7 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
       }
     }
 
-  }, [filteredApps, selectedMukim, selectedDaerah, isLoaded]);
+  }, [filteredApps, selectedMukim, selectedDaerah, isLoaded, language]);
 
   // Calculate successful and incomplete counts
   const successfulCount = filteredApps.filter(app => 
@@ -306,34 +308,34 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
       <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Stats Box */}
         <div className="p-3 bg-white border border-gray-200 rounded-lg">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Dipapar Pada Peta</p>
-          <p className="text-xs text-gray-600 mb-1">Berjaya dan Tidak Lengkap</p>
+          <p className="text-sm font-semibold text-gray-800 mb-2">{language === 'en' ? 'Displayed on Map' : 'Dipapar Pada Peta'}</p>
+          <p className="text-xs text-gray-600 mb-1">{language === 'en' ? 'Successful and Incomplete' : 'Berjaya dan Tidak Lengkap'}</p>
           <div className="text-4xl font-bold text-blue-600">{filteredApps.length}</div>
         </div>
 
         {/* Instructions Box */}
         <div className="p-3 bg-white border border-blue-300 rounded-lg">
-          <p className="text-sm font-semibold text-blue-700 mb-2">📍 Cara Menggunakan Peta Interaktif:</p>
+          <p className="text-sm font-semibold text-blue-700 mb-2">📍 {language === 'en' ? 'How to Use Interactive Map:' : 'Cara Menggunakan Peta Interaktif:'}</p>
           <ul className="text-xs text-gray-700 space-y-1">
             <li className="flex items-start">
-              <span className="font-semibold mr-1">Circle Hijau:</span>
-              <span>Permohonan Berjaya (Diluluskan, Sedia Diambil, Telah Diambil)</span>
+              <span className="font-semibold mr-1">{language === 'en' ? 'Green Circle:' : 'Circle Hijau:'}</span>
+              <span>{language === 'en' ? 'Successful Applications (Approved, Ready, Collected)' : 'Permohonan Berjaya (Diluluskan, Sedia Diambil, Telah Diambil)'}</span>
             </li>
             <li className="flex items-start">
-              <span className="font-semibold mr-1">Circle Merah:</span>
-              <span>Permohonan Tidak Lengkap</span>
+              <span className="font-semibold mr-1">{language === 'en' ? 'Red Circle:' : 'Circle Merah:'}</span>
+              <span>{language === 'en' ? 'Incomplete Applications' : 'Permohonan Tidak Lengkap'}</span>
             </li>
             <li className="flex items-start">
-              <span className="font-semibold mr-1">Hover pada circle</span>
-              <span>untuk preview maklumat (Status Aktif, Jenis OKU)</span>
+              <span className="font-semibold mr-1">{language === 'en' ? 'Hover on circle' : 'Hover pada circle'}</span>
+              <span>{language === 'en' ? 'to preview info (Active Status, OKU Type)' : 'untuk preview maklumat (Status Aktif, Jenis OKU)'}</span>
             </li>
             <li className="flex items-start">
-              <span className="font-semibold mr-1">Klik pada circle</span>
-              <span>untuk maklumat penuh (Nama Pemohon, Status, dll)</span>
+              <span className="font-semibold mr-1">{language === 'en' ? 'Click on circle' : 'Klik pada circle'}</span>
+              <span>{language === 'en' ? 'for full info (Applicant Name, Status, etc)' : 'untuk maklumat penuh (Nama Pemohon, Status, dll)'}</span>
             </li>
             <li className="flex items-start">
-              <span className="font-semibold mr-1">Dikecualikan:</span>
-              <span>Permohonan "Dalam Proses" tidak dipaparkan</span>
+              <span className="font-semibold mr-1">{language === 'en' ? 'Excluded:' : 'Dikecualikan:'}</span>
+              <span>{language === 'en' ? 'Applications "In Progress" not displayed' : 'Permohonan "Dalam Proses" tidak dipaparkan'}</span>
             </li>
           </ul>
         </div>

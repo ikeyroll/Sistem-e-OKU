@@ -339,14 +339,35 @@ export default function PembaharuanPermohonan() {
         mukim,
       };
       
-      // 4. Save to Supabase
+      // 4. Save to Supabase - UPDATE if existing app is "Tidak Lengkap", otherwise CREATE new
       toast.info('Saving application...');
-      await createApplication(applicationData);
       
-      // 5. Store in sessionStorage
-      sessionStorage.setItem('lastRefNo', refNo);
+      if (existingApp && (existingApp.status === 'Tidak Lengkap' || existingApp.status === 'Tidak Berjaya')) {
+        // UPDATE existing "Tidak Lengkap" application instead of creating new
+        console.log('🔄 Updating existing Tidak Lengkap application:', existingApp.id);
+        const { updateApplication } = await import('@/lib/api/applications');
+        
+        await updateApplication(existingApp.id, {
+          pemohon: applicationData.pemohon,
+          tanggungan: applicationData.tanggungan,
+          documents: applicationData.documents,
+          status: 'Dalam Proses',
+          latitude: applicationData.latitude,
+          longitude: applicationData.longitude,
+          daerah: applicationData.daerah,
+          mukim: applicationData.mukim,
+        });
+        
+        // Use existing ref_no
+        sessionStorage.setItem('lastRefNo', existingApp.ref_no);
+        toast.success('Permohonan berjaya dikemaskini!');
+      } else {
+        // CREATE new pembaharuan application
+        await createApplication(applicationData);
+        sessionStorage.setItem('lastRefNo', refNo);
+        toast.success('Pembaharuan berjaya dihantar!');
+      }
       
-      toast.success('Pembaharuan berjaya dihantar!');
       
       // 6. Redirect to success page
       router.push(`/permohonan/berjaya?ref=${formData.pemohonIC}&type=renewal`);

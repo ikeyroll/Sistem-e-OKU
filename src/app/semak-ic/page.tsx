@@ -9,11 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, CheckCircle, AlertCircle, User, Calendar, Clock } from 'lucide-react';
+import { Search, CheckCircle, AlertCircle, User, Calendar, Clock, FileText } from 'lucide-react';
 import { getApplicationByIC } from '@/lib/api/applications';
+import { formatIC } from '@/lib/formatters';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function SemakIC() {
   const router = useRouter();
+  const { language } = useLanguage();
   const [icNumber, setIcNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -218,52 +221,29 @@ export default function SemakIC() {
       <Header />
       <main className="min-h-screen py-6 bg-gradient-to-br from-primary/5 to-background">
         <div className="container mx-auto px-4 max-w-3xl">
-          {/* Header with Logo */}
-          <div className="text-center mb-6">
-            {/* Logo e-OKU */}
-            <div className="flex justify-center mb-3 sm:mb-6">
-              <div className="relative w-90 h-90 sm:w-100 sm:h-100">
-                <Image
-                  src="/e-oku.png"
-                  alt="Logo e-OKU"
-                  fill
-                  className="object-contain"
-                  priority
-                />
-              </div>
-            </div>
-            
-            {/* Nama Penuh Majlis */}
-            <div className="mb-6">
-              <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-2">
-                Majlis Perbandaran Hulu Selangor
-              </h2>
-            </div>
-            
-            {/* Sistem Title */}
-            <div className="border-t border-b border-primary/20 py-3 mb-2">
-              <h1 className="text-2xl sm:text-3xl font-bold mb-1">Sistem e-OKU</h1>
-              <p className="text-muted-foreground text-sm sm:text-base">
-                Daftar pelekat kenderaan OKU secara dalam talian dengan mudah dan cepat
-              </p>
-            </div>
+          {/* Header - Compact without logo */}
+          <div className="text-center mb-4">
+            <h1 className="text-lg sm:text-xl font-semibold mb-1">Sistem e-OKU</h1>
+            <p className="text-muted-foreground text-xs sm:text-sm">
+              Daftar pelekat kenderaan OKU secara dalam talian dengan mudah dan cepat
+            </p>
           </div>
 
           {/* Search Card */}
           <Card className="shadow-lg">
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl">Sila Masukkan No Kad Pengenalan</CardTitle>
-              <CardDescription>Untuk menyemak status pendaftaran anda</CardDescription>
+            <CardHeader className="text-center pb-3">
+              <CardTitle className="text-xl">{language === 'en' ? 'Please Enter IC Number' : 'Sila Masukkan No Kad Pengenalan'}</CardTitle>
+              <CardDescription className="text-sm">{language === 'en' ? 'To check your registration status' : 'Untuk menyemak status pendaftaran anda'}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* IC Input */}
               <div className="space-y-2">
                 <Input
-                  placeholder="Contoh: 020516-14-1516"
+                  placeholder={language === 'en' ? 'Example: 020516-14-1516' : 'Contoh: 020516-14-1516'}
                   value={icNumber}
                   onChange={(e) => setIcNumber(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  className="text-center text-lg"
+                  className="text-center text-base"
                   disabled={loading}
                 />
               </div>
@@ -272,20 +252,32 @@ export default function SemakIC() {
               <Button 
                 onClick={handleSearch} 
                 disabled={loading || !icNumber}
-                className="w-full"
-                size="lg"
+                className="w-full h-10"
               >
                 {loading ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Mencari...
+                    {language === 'en' ? 'Searching...' : 'Mencari...'}
                   </>
                 ) : (
                   <>
                     <Search className="h-4 w-4 mr-2" />
-                    Semak
+                    {language === 'en' ? 'Check' : 'Semak'}
                   </>
                 )}
+              </Button>
+
+              {/* Terms of Use Button */}
+              <Button 
+                onClick={() => {
+                  // TODO: Replace with actual Google Drive link
+                  window.open('YOUR_GOOGLE_DRIVE_LINK_HERE', '_blank');
+                }}
+                variant="outline"
+                className="w-full h-10 border-blue-500 text-blue-600 hover:bg-blue-50"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                {language === 'en' ? 'Terms of Use' : 'Syarat-Syarat Penggunaan'}
               </Button>
 
               {/* Error Message */}
@@ -304,38 +296,33 @@ export default function SemakIC() {
                   
                   {/* Status Messages Below Search Button */}
                   {(result.status === 'Tidak Lengkap' || result.status === 'Tidak Berjaya') && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-red-800 text-center font-semibold">
-                        Permohonan Tidak Lengkap
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-red-800 text-center font-semibold text-sm">
+                        {language === 'en' ? 'Application Incomplete' : 'Permohonan Tidak Lengkap'}
                       </p>
                     </div>
                   )}
 
                   {result.status === 'Diluluskan' && (
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-green-800 text-center font-semibold mb-2">
-                        <CheckCircle className="inline h-5 w-5 mr-2" />
-                        Permohonan Diluluskan
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-green-800 text-center font-semibold mb-1 text-sm">
+                        <CheckCircle className="inline h-4 w-4 mr-2" />
+                        {language === 'en' ? 'Application Approved' : 'Permohonan Diluluskan'}
                       </p>
-                      <p className="text-green-700 text-center text-sm">
-                        Pengambilan sticker akan diberitahu kemudian oleh pihak pentadbir.
+                      <p className="text-green-700 text-center text-xs">
+                        {language === 'en' ? 'Sticker collection will be notified later by admin.' : 'Pengambilan sticker akan diberitahu kemudian oleh pihak pentadbir.'}
                       </p>
                     </div>
                   )}
 
                   {result.status === 'Dalam Proses' && (
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-blue-800 text-center font-semibold">
-                        <Clock className="inline h-5 w-5 mr-2" />
-                        Permohonan Sedang Diproses
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-blue-800 text-center font-semibold text-sm">
+                        <Clock className="inline h-4 w-4 mr-2" />
+                        {language === 'en' ? 'Application In Progress' : 'Permohonan Sedang Diproses'}
                       </p>
-                      <p className="text-blue-700 text-center text-sm mt-2">
-                        Permohonan anda sedang disemak oleh pihak pentadbir. Sila tunggu keputusan dalam masa 5 hari bekerja.
-                      </p>
-                      <p className="text-blue-600 text-center text-xs mt-2">
-                        Anda akan dimaklumkan melalui:<br />
-                        • Status akan dikemaskini apabila permohonan diluluskan<br />
-                        • Status stiker sedia untuk diambil
+                      <p className="text-blue-700 text-center text-xs mt-1">
+                        {language === 'en' ? 'Your application is being reviewed. Please wait 5 working days.' : 'Permohonan anda sedang disemak. Sila tunggu 5 hari bekerja.'}
                       </p>
                     </div>
                   )}
@@ -369,28 +356,28 @@ export default function SemakIC() {
                   )}
 
                   {/* User Info */}
-                  <div className="border rounded-lg p-4 space-y-3">
+                  <div className="border rounded-lg p-3 space-y-2">
                     <div className="flex items-center gap-2 pb-2 border-b">
-                      <User className="h-5 w-5 text-primary" />
-                      <h3 className="font-semibold">Maklumat Pemohon</h3>
+                      <User className="h-4 w-4 text-primary" />
+                      <h3 className="font-semibold text-sm">{language === 'en' ? 'Applicant Information' : 'Maklumat Pemohon'}</h3>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <p className="text-muted-foreground">No. Id</p>
-                        <p className="font-mono font-semibold">{result.refNo}</p>
+                        <p className="text-muted-foreground">{language === 'en' ? 'ID No.' : 'No. Id'}</p>
+                        <p className="font-mono font-semibold text-sm">{result.refNo}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Jenis</p>
-                        <p className="font-semibold">{result.applicationType === 'baru' ? 'Baharu' : 'Pembaharuan'}</p>
+                        <p className="text-muted-foreground">{language === 'en' ? 'Type' : 'Jenis'}</p>
+                        <p className="font-semibold text-sm">{result.applicationType === 'baru' ? (language === 'en' ? 'New' : 'Baharu') : (language === 'en' ? 'Renewal' : 'Pembaharuan')}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">No. IC</p>
-                        <p className="font-mono font-semibold">{result.ic}</p>
+                        <p className="text-muted-foreground">{language === 'en' ? 'IC No.' : 'No. IC'}</p>
+                        <p className="font-mono font-semibold text-sm">{formatIC(result.ic)}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Tarikh Mohon</p>
-                        <p className="font-semibold">{result.submittedDate}</p>
+                        <p className="text-muted-foreground">{language === 'en' ? 'Applied Date' : 'Tarikh Mohon'}</p>
+                        <p className="font-semibold text-sm">{result.submittedDate}</p>
                       </div>
                     </div>
                   </div>

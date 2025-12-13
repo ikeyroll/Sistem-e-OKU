@@ -178,15 +178,32 @@ export async function createApplication(application: Partial<Application>) {
 
 // Update application
 export async function updateApplication(id: string, updates: Partial<Application>) {
-  // For coordinate updates, we only update lat/lng directly in the table
-  // Don't try to update pemohon or other fields
   const dbPayload: any = {};
   
+  // Add all valid updates to payload
   if (updates.latitude !== undefined) {
     dbPayload.latitude = updates.latitude;
   }
   if (updates.longitude !== undefined) {
     dbPayload.longitude = updates.longitude;
+  }
+  if (updates.pemohon !== undefined) {
+    dbPayload.pemohon = updates.pemohon;
+  }
+  if (updates.documents !== undefined) {
+    dbPayload.documents = updates.documents;
+  }
+  if (updates.daerah !== undefined) {
+    dbPayload.daerah = updates.daerah;
+  }
+  if (updates.mukim !== undefined) {
+    dbPayload.mukim = updates.mukim;
+  }
+  if (updates.status !== undefined) {
+    dbPayload.status = updates.status;
+  }
+  if (updates.admin_notes !== undefined) {
+    dbPayload.admin_notes = updates.admin_notes;
   }
   
   // If no valid updates, skip
@@ -194,6 +211,7 @@ export async function updateApplication(id: string, updates: Partial<Application
     return null;
   }
 
+  // UPDATE existing record - this will NOT create duplicates
   const { data, error } = await supabase
     .from('applications')
     .update(dbPayload)

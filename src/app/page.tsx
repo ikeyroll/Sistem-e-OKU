@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation';
 import { getApplicationByIC } from '@/lib/api/applications';
 
 export default function Home() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const router = useRouter();
   const [icNumber, setIcNumber] = useState('');
   const [isChecking, setIsChecking] = useState(false);
@@ -257,29 +257,51 @@ export default function Home() {
             <div className="max-w-3xl mx-auto">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-2xl">Keperluan Dokumen</CardTitle>
+                  <CardTitle className="text-2xl">
+                    {language === 'en' ? 'Document Requirements' : 'Keperluan Dokumen'}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-3">
                     <li className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-primary mr-3 mt-0.5 flex-shrink-0" />
-                      <span>Satu (1) Salinan Kad Pengenalan atau Sijil Kelahiran Pemohon / Tanggungan</span>
+                      <span>
+                        {language === 'en' 
+                          ? 'One (1) Copy of Identity Card or Birth Certificate of Applicant / Dependent'
+                          : 'Satu (1) Salinan Kad Pengenalan atau Sijil Kelahiran Pemohon / Tanggungan'}
+                      </span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-primary mr-3 mt-0.5 flex-shrink-0" />
-                      <span>Satu (1) Salinan Kad OKU Pemohon / Tanggungan</span>
+                      <span>
+                        {language === 'en'
+                          ? 'One (1) Copy of OKU Card of Applicant / Dependent'
+                          : 'Satu (1) Salinan Kad OKU Pemohon / Tanggungan'}
+                      </span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-primary mr-3 mt-0.5 flex-shrink-0" />
-                      <span>Satu (1) Salinan Lesen Memandu Pemohon</span>
+                      <span>
+                        {language === 'en'
+                          ? "One (1) Copy of Applicant's Driving License"
+                          : 'Satu (1) Salinan Lesen Memandu Pemohon'}
+                      </span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-primary mr-3 mt-0.5 flex-shrink-0" />
-                      <span>Sekeping Gambar Ukuran Pasport OKU</span>
+                      <span>
+                        {language === 'en'
+                          ? 'One Passport-Sized Photo of OKU'
+                          : 'Sekeping Gambar Ukuran Pasport OKU'}
+                      </span>
                     </li>
                     <li className="flex items-start">
                       <AlertCircle className="h-5 w-5 text-red-500 mr-3 mt-0.5 flex-shrink-0" />
-                      <span className="text-red-700 font-medium">Pelekat OKU Yang Lama Dikembalikan (Jika Permohonan Pembaharuan) - Bawa semasa mengambil pelekat baharu</span>
+                      <span className="text-red-700 font-medium">
+                        {language === 'en'
+                          ? 'Old OKU Sticker Must Be Returned (If Renewal Application) - Bring when collecting new sticker'
+                          : 'Pelekat OKU Yang Lama Dikembalikan (Jika Permohonan Pembaharuan) - Bawa semasa mengambil pelekat baharu'}
+                      </span>
                     </li>
                   </ul>
                 </CardContent>

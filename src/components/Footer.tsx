@@ -74,21 +74,21 @@ export default function Footer() {
 
             {/* Address Section */}
             <div className="text-left">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Majlis Perbandaran Hulu Selangor (MPHS),<br />
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              {language === 'en' ? 'Hulu Selangor Municipal Council (MPHS)' : 'Majlis Perbandaran Hulu Selangor (MPHS)'},<br />
               Jalan Bukit Kerajaan,<br />
               44000 Kuala Kubu Bharu,<br />
               Selangor Darul Ehsan.
             </p>
-            <p className="text-sm text-muted-foreground mt-3">
-              Isnin - Jumaat : 8:00ptg - 5:00ptg
+            <p className="text-xs sm:text-sm text-muted-foreground mt-2 sm:mt-3">
+              {language === 'en' ? 'Monday - Friday : 8:00am - 5:00pm' : 'Isnin - Jumaat : 8:00pagi - 5:00petang'}
             </p>
           </div>
           </div>
 
           {/* Contact Info - Centered container with left-aligned text */}
           <div className="flex justify-center">
-            <div className="space-y-0 text-sm text-muted-foreground text-left">
+            <div className="space-y-0 text-xs sm:text-sm text-muted-foreground text-left">
               <p>T : +603.6064 1331</p>
               <p>F : +603.6064 3991</p>
               <p>E : webmaster@mphs.gov.my</p>
@@ -126,7 +126,7 @@ export default function Footer() {
             </div>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Jumlah Pelawat :</span>
+                <span className="text-xs text-muted-foreground">{language === 'en' ? 'Total Visitors :' : 'Jumlah Pelawat :'}</span>
                 <div className="flex gap-0.5">
                   {formatVisitorCount(visitorCount).map((digit, index) => (
                     <span
@@ -138,7 +138,7 @@ export default function Footer() {
                   ))}
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">No Asset: {footerSettings.asset_number}</p>
+              <p className="text-xs text-muted-foreground">{language === 'en' ? 'Asset No:' : 'No Asset:'} {footerSettings.asset_number}</p>
             </div>
           </div>
         </div>
@@ -147,11 +147,15 @@ export default function Footer() {
       {/* Bottom Section - PDPA Notice */}
       <div className="bg-muted border-t py-4">
         <div className="container mx-auto px-4">
-          <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
-            Majlis Perbandaran Hulu Selangor (MPHS) menghargai data peribadi dan memastikan semua data yang dikumpul adalah selaras dengan PDPA (Personal Data Protection Act 2010). MPHS tidak bertanggungjawab terhadap sebarang kehilangan atau kerosakan yang dialami kerana menggunakan maklumat dalam laman ini.
+          <p className="text-[10px] sm:text-xs text-muted-foreground text-center leading-relaxed">
+            {language === 'en' 
+              ? 'Hulu Selangor Municipal Council (MPHS) values personal data and ensures all data collected is in accordance with PDPA (Personal Data Protection Act 2010). MPHS is not responsible for any loss or damage experienced from using information on this site.'
+              : 'Majlis Perbandaran Hulu Selangor (MPHS) menghargai data peribadi dan memastikan semua data yang dikumpul adalah selaras dengan PDPA (Personal Data Protection Act 2010). MPHS tidak bertanggungjawab terhadap sebarang kehilangan atau kerosakan yang dialami kerana menggunakan maklumat dalam laman ini.'}
           </p>
-          <p className="text-[10px] text-muted-foreground text-center mt-2">
-            Paparan terbaik menggunakan pelayar versi terkini Google Chrome, Mozilla Firefox, Microsoft Edge dan Safari.
+          <p className="text-[10px] sm:text-xs text-muted-foreground text-center mt-2">
+            {language === 'en'
+              ? 'Best viewed using the latest versions of Google Chrome, Mozilla Firefox, Microsoft Edge and Safari.'
+              : 'Paparan terbaik menggunakan pelayar versi terkini Google Chrome, Mozilla Firefox, Microsoft Edge dan Safari.'}
           </p>
         </div>
       </div>

@@ -811,18 +811,24 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={kategoriOKUData} layout="vertical" margin={{ left: 150, right: 30 }}>
+                  <BarChart data={kategoriOKUData} layout="vertical" margin={{ left: 10, right: 10, top: 5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={140} style={{ fontSize: '11px' }} />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      width={100}
+                      style={{ fontSize: '9px' }}
+                      tick={{ fontSize: 9 }}
+                    />
                     <Tooltip />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: '10px' }} />
                     <Bar 
                       dataKey="value" 
                       fill="#8b5cf6" 
                       name={language === 'en' ? 'Count' : 'Bilangan'}
                       radius={[0, 4, 4, 0]}
-                      label={{ position: 'right', fontSize: 12 }}
+                      label={{ position: 'right', fontSize: 10 }}
                     />
                   </BarChart>
                 </ResponsiveContainer>
