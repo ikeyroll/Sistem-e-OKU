@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload, Copy } from 'lucide-react';
+import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload, Copy, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateNoSiri } from '@/lib/generateNoSiri';
 import { exportBySession } from '@/lib/csvExport';
@@ -275,11 +275,11 @@ export default function AdminPanel() {
     return Array.from(mukims).sort();
   };
 
-  // Get unique sessions from dummy data
+  // Get unique sessions from real applications data
   const getKMLSessions = () => {
     const sessions = new Set<string>();
-    dummyApps.forEach(app => {
-      if (app.approved_date) {
+    applications.forEach(app => {
+      if (app.approved_date && isSuccessStatus(app.status)) {
         const year = new Date(app.approved_date).getFullYear();
         sessions.add(`${year}/${year + 2}`);
       }
@@ -290,13 +290,13 @@ export default function AdminPanel() {
   // Helper to check if status is successful (same as dashboard)
   const isSuccessStatus = (status: string) => ['Diluluskan', 'Sedia Diambil', 'Telah Diambil'].includes(status);
 
-  // Handle KML download using dummy data - ONLY successful applications (same as dashboard map)
+  // Handle KML download - ONLY successful applications (same as dashboard map)
   const handleKMLDownload = async () => {
     try {
       const { generateKML } = await import('@/lib/kml');
       
-      // Filter dummy applications - ONLY SUCCESSFUL (Berjaya) apps with coordinates
-      let filteredApps = dummyApps.filter(app => {
+      // Filter applications - ONLY SUCCESSFUL (Berjaya) apps with coordinates
+      let filteredApps = applications.filter(app => {
         // Only include apps with coordinates
         if (!app.latitude || !app.longitude) return false;
         
@@ -379,6 +379,9 @@ export default function AdminPanel() {
   const [editDaerah, setEditDaerah] = useState<string>('');
   const [editMukim, setEditMukim] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Edit wizard step state (for 3-page wizard)
+  const [editStep, setEditStep] = useState(1); // 1 = Maklumat Pemohon, 2 = Lokasi & Peta, 3 = Dokumen
   
   // Document upload state
   const [editDocuments, setEditDocuments] = useState<{
@@ -549,22 +552,17 @@ export default function AdminPanel() {
       const unmappedActual = actualColumns.filter(col => !columnMapping[col]);
       
       if (missingColumns.length > 0) {
-        let errorMsg = language === 'en' 
-          ? '❌ Format CSV tidak lengkap!\n\n' 
-          : '❌ Format CSV tidak lengkap!\n\n';
-        
-        // Only show missing columns
-        errorMsg += '❌ ' + (language === 'en' ? 'Kolum wajib yang hilang: ' : 'Kolum wajib yang hilang: ') + missingColumns.join(', ');
-        
-        errorMsg += '\n\n💡 ' + (language === 'en' 
-          ? 'Sila muat turun templat CSV dari dashboard untuk melihat format yang betul.' 
-          : 'Sila muat turun templat CSV dari dashboard untuk melihat format yang betul.');
-        
-        toast.error(errorMsg, { 
-          duration: Infinity, // Don't auto-dismiss
-          closeButton: true,  // Show close button
-          dismissible: true   // Allow manual dismiss
-        });
+        toast.error(
+          language === 'en' 
+            ? 'Format CSV tidak lengkap. Sila muat turun templat yang betul.' 
+            : 'Format CSV tidak lengkap. Sila muat turun templat yang betul.',
+          { 
+            duration: 5000,
+            closeButton: true,
+            dismissible: true,
+            position: 'top-center'
+          }
+        );
         setIsImporting(false);
         return;
       }
@@ -595,17 +593,13 @@ export default function AdminPanel() {
       }
       
       if (results.failed > 0) {
-        // Show detailed error messages for each failed row
-        const errorMessages = results.errors.map((err: any) => 
-          `Baris ${err.row}: ${err.error}`
-        ).join('\n');
-        
         toast.error(
-          `${language === 'en' ? 'Failed to import' : 'Gagal diimport'}: ${results.failed} ${language === 'en' ? 'records' : 'rekod'}\n\n${errorMessages}`,
+          `${results.failed} rekod gagal diimport. Sila semak format data.`,
           { 
-            duration: Infinity,
+            duration: 5000,
             closeButton: true,
-            dismissible: true
+            dismissible: true,
+            position: 'top-center'
           }
         );
         console.error('❌ Import errors:', results.errors);
@@ -881,6 +875,9 @@ export default function AdminPanel() {
       tanggunganSignature: null,
     });
     
+    // Reset wizard to step 1
+    setEditStep(1);
+    
     setShowEditModal(true);
   };
 
@@ -1013,15 +1010,15 @@ export default function AdminPanel() {
             <div className="flex gap-2">
               {isAdminBoss && (
                 <>
-                  <Button variant="outline" onClick={() => router.push('/admin/manage-admins')}>
+                  <Button variant="outline" onClick={() => router.push('/admin/manage-admins')} className="w-full">
                     {language === 'en' ? 'Manage Admins' : 'Urus Admin'}
                   </Button>
-                  <Button variant="outline" onClick={() => router.push('/admin/manage-footer')}>
+                  <Button variant="outline" onClick={() => router.push('/admin/manage-footer')} className="w-full">
                     {language === 'en' ? 'Footer' : 'Footer'}
                   </Button>
                 </>
               )}
-              <Button variant="outline" onClick={handleLogout}>
+              <Button variant="outline" onClick={handleLogout} className="w-full">
                 {t('admin.logout')}
               </Button>
             </div>
@@ -1352,7 +1349,7 @@ export default function AdminPanel() {
                           </TableCell>
                           <TableCell className="whitespace-nowrap">{bulanMohon}</TableCell>
                           <TableCell className="whitespace-nowrap">{tahunMohon}</TableCell>
-                          <TableCell className="min-w-[200px]">{app.pemohon.name}</TableCell>
+                          <TableCell className="min-w-[200px] uppercase">{app.pemohon.name}</TableCell>
                           <TableCell className="whitespace-nowrap font-mono text-sm">{formatIC(app.pemohon.ic)}</TableCell>
                         </TableRow>
                         );
@@ -1364,7 +1361,7 @@ export default function AdminPanel() {
                 
                 {/* Pagination Controls */}
               {!loading && filteredApps.length > 0 && (
-                <div className="flex items-center justify-between px-4 py-4 border-t">
+                <div className="hidden md:flex items-center justify-between px-4 py-4 border-t">
                   <div className="flex items-center gap-4">
                     <div className="text-sm text-muted-foreground">
                       {language === 'en' 
@@ -1450,6 +1447,37 @@ export default function AdminPanel() {
                     >
                       {language === 'en' ? 'Next' : 'Seterusnya'}
                     </Button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Mobile Pagination */}
+              {!loading && filteredApps.length > 0 && (
+                <div className="md:hidden px-4 py-4 border-t space-y-3">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="flex-1"
+                    >
+                      ← {language === 'en' ? 'Previous' : 'Sebelumnya'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="flex-1"
+                    >
+                      {language === 'en' ? 'Next' : 'Seterusnya'} →
+                    </Button>
+                  </div>
+                  <div className="text-center text-xs text-muted-foreground">
+                    {language === 'en' 
+                      ? `Page ${currentPage} of ${totalPages} • ${filteredApps.length} records`
+                      : `Halaman ${currentPage}/${totalPages} • ${filteredApps.length} rekod`}
                   </div>
                 </div>
               )}
@@ -1560,7 +1588,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Session' : 'Sesi'}</Label>
                     <Select value={kmlSession} onValueChange={setKmlSession}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1589,7 +1617,7 @@ export default function AdminPanel() {
 
       {/* Detail Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[90vw] w-[90vw] h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -1623,96 +1651,115 @@ export default function AdminPanel() {
             </div>
           </DialogHeader>
           {selectedApp && (
-            <div className="space-y-4">
-              {selectedApp.no_siri && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm font-medium text-green-800">No. Siri</p>
-                  <p className="text-lg font-bold text-green-900 font-mono">{selectedApp.no_siri}</p>
-                </div>
-              )}
-              
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-semibold">Maklumat Pemohon</h4>
-                </div>
+            <div className="space-y-3 overflow-y-auto flex-1 pr-2">
+              {/* ROW 1: Maklumat Pemohon */}
+              <div className="p-4 bg-white border-2 border-blue-200 rounded-lg shadow-sm">
+                <h3 className="text-base font-semibold text-blue-900 mb-3 pb-2 border-b border-blue-300 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Maklumat Pemohon
+                </h3>
+                
+                {selectedApp.no_siri && (
+                  <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                    <p className="text-xs font-medium text-blue-700">No. Siri</p>
+                    <p className="text-sm font-semibold text-blue-900 font-mono">{selectedApp.no_siri}</p>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-muted-foreground">Nama:</span> {selectedApp.pemohon.name}</div>
-                  <div><span className="text-muted-foreground">IC:</span> <span className="font-mono">{formatIC(selectedApp.pemohon.ic)}</span></div>
-                  <div><span className="text-muted-foreground">Kad OKU:</span> {selectedApp.pemohon.okuCard}</div>
-                  <div><span className="text-muted-foreground">Telefon:</span> {selectedApp.pemohon.phone}</div>
-                  <div><span className="text-muted-foreground">No. Kereta:</span> {selectedApp.pemohon.carReg}</div>
-                  <div><span className="text-muted-foreground">No. Akaun Cukai Taksiran:</span> {selectedApp.pemohon.taxAccount || '-'}</div>
-                  <div><span className="text-muted-foreground">Kategori:</span> {selectedApp.pemohon.okuCategory}</div>
-                  <div className="col-span-2"><span className="text-muted-foreground">Alamat:</span> {typeof selectedApp.pemohon.address === 'object' ? selectedApp.pemohon.address.full_address || `${selectedApp.pemohon.address.street}, ${selectedApp.pemohon.address.mukim}, ${selectedApp.pemohon.address.daerah}` : selectedApp.pemohon.address}</div>
-                  {(selectedApp.latitude || selectedApp.longitude) && (
-                    <div className="col-span-2"><span className="text-muted-foreground">Koordinat:</span> {selectedApp.latitude?.toFixed(6)}, {selectedApp.longitude?.toFixed(6)}</div>
-                  )}
-                  {selectedApp.mukim && (
-                    <div><span className="text-muted-foreground">Mukim:</span> {selectedApp.mukim}</div>
-                  )}
-                  {selectedApp.daerah && (
-                    <div><span className="text-muted-foreground">Daerah:</span> {selectedApp.daerah}</div>
-                  )}
+                  <div><span className="text-blue-700 font-medium">Nama:</span> {selectedApp.pemohon.name}</div>
+                  <div><span className="text-blue-700 font-medium">IC:</span> <span className="font-mono">{formatIC(selectedApp.pemohon.ic)}</span></div>
+                  <div><span className="text-blue-700 font-medium">Kad OKU:</span> {selectedApp.pemohon.okuCard}</div>
+                  <div><span className="text-blue-700 font-medium">Telefon:</span> {selectedApp.pemohon.phone}</div>
+                  <div><span className="text-blue-700 font-medium">No. Kereta:</span> {selectedApp.pemohon.carReg}</div>
+                  <div><span className="text-blue-700 font-medium">No. Akaun Cukai:</span> {selectedApp.pemohon.taxAccount || '-'}</div>
+                  <div><span className="text-blue-700 font-medium">Kategori:</span> {selectedApp.pemohon.okuCategory}</div>
+                  <div className="col-span-2"><span className="text-blue-700 font-medium">Alamat:</span> {typeof selectedApp.pemohon.address === 'object' ? selectedApp.pemohon.address.full_address || `${selectedApp.pemohon.address.street}, ${selectedApp.pemohon.address.mukim}, ${selectedApp.pemohon.address.daerah}` : selectedApp.pemohon.address}</div>
                 </div>
-              </div>
-
-              {selectedApp.tanggungan && (
-                <div>
-                  <h4 className="font-semibold mb-2">Maklumat Tanggungan</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                
+                {selectedApp.tanggungan && (
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <h4 className="font-semibold mb-2 text-blue-900">Maklumat Tanggungan</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
                     <div><span className="text-muted-foreground">Nama Penjaga:</span> {selectedApp.tanggungan.name}</div>
                     <div><span className="text-muted-foreground">Hubungan:</span> {selectedApp.tanggungan.relation}</div>
                     <div><span className="text-muted-foreground">IC Penjaga:</span> {selectedApp.tanggungan.ic}</div>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {selectedApp.admin_notes && (
-                <div className="p-4 bg-red-50 border-l-4 border-l-red-500 rounded">
-                  <h4 className="font-semibold text-red-800 mb-2">Catatan Admin</h4>
-                  <p className="text-sm text-red-700">{selectedApp.admin_notes}</p>
-                </div>
-              )}
-
-              {/* Expiry Date Display */}
-              {(selectedApp.status === 'Diluluskan' || selectedApp.status === 'Sedia Diambil' || selectedApp.status === 'Telah Diambil') && selectedApp.expiry_date && (
-                <div className={`p-4 border-l-4 rounded ${
-                  new Date(selectedApp.expiry_date) < new Date()
-                    ? 'bg-red-50 border-l-red-500'
-                    : 'bg-green-50 border-l-green-500'
-                }`}>
-                  <h4 className={`font-semibold mb-2 ${
-                    new Date(selectedApp.expiry_date) < new Date() ? 'text-red-800' : 'text-green-800'
+              {/* ROW 2: Status & Expiry */}
+              <div className="p-4 bg-white border-2 border-green-200 rounded-lg shadow-sm">
+                <h3 className="text-base font-semibold text-green-900 mb-3 pb-2 border-b border-green-300 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Status Permohonan
+                </h3>
+                
+                {/* Expiry Date Display */}
+                {(selectedApp.status === 'Diluluskan' || selectedApp.status === 'Sedia Diambil' || selectedApp.status === 'Telah Diambil') && selectedApp.expiry_date && (
+                  <div className={`p-2 rounded mb-3 border-2 ${
+                    new Date(selectedApp.expiry_date) < new Date()
+                      ? 'bg-white border-red-300'
+                      : 'bg-white border-green-300'
                   }`}>
-                    {new Date(selectedApp.expiry_date) < new Date() ? '⚠️ Stiker Tamat Tempoh' : 'Tarikh Tamat Tempoh Stiker'}
-                  </h4>
-                  <p className={`text-sm font-mono ${
-                    new Date(selectedApp.expiry_date) < new Date() ? 'text-red-700' : 'text-green-700'
-                  }`}>
-                    {new Date(selectedApp.expiry_date).toLocaleDateString('ms-MY')}
-                  </p>
-                  {new Date(selectedApp.expiry_date) < new Date() && (
-                    <p className="text-xs text-red-600 mt-1">Pembaharuan diperlukan</p>
+                    <p className={`text-xs font-medium mb-1 ${
+                      new Date(selectedApp.expiry_date) < new Date() ? 'text-red-700' : 'text-green-700'
+                    }`}>
+                      {new Date(selectedApp.expiry_date) < new Date() ? '⚠️ Tamat Tempoh' : '✓ Tarikh Tamat Tempoh'}
+                    </p>
+                    <p className={`text-sm font-semibold font-mono ${
+                      new Date(selectedApp.expiry_date) < new Date() ? 'text-red-600' : 'text-green-900'
+                    }`}>
+                      {new Date(selectedApp.expiry_date).toLocaleDateString('ms-MY')}
+                    </p>
+                    {new Date(selectedApp.expiry_date) < new Date() && (
+                      <p className="text-xs text-red-600 mt-1">Pembaharuan diperlukan</p>
+                    )}
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-green-700 font-medium">Status:</span> <span className="font-semibold text-green-900">{selectedApp.status}</span></div>
+                  <div><span className="text-green-700 font-medium">Jenis:</span> {selectedApp.application_type === 'baru' ? 'Baharu' : 'Pembaharuan'}</div>
+                  <div><span className="text-green-700 font-medium">Tarikh Mohon:</span> {new Date(selectedApp.submitted_date).toLocaleDateString('ms-MY')}</div>
+                  {selectedApp.approved_date && (
+                    <div><span className="text-green-700 font-medium">Tarikh Lulus:</span> {new Date(selectedApp.approved_date).toLocaleDateString('ms-MY')}</div>
                   )}
                 </div>
-              )}
+                
+                {selectedApp.admin_notes && (
+                  <div className="mt-3 p-2 bg-red-50 border-l-4 border-l-red-500 rounded flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h4 className="font-semibold text-red-800 text-xs mb-1">Catatan Admin</h4>
+                      <p className="text-xs text-red-700">{selectedApp.admin_notes}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-              {/* Documents Section */}
+              {/* ROW 3: Dokumen */}
               {selectedApp.documents && (
-                <div>
-                  <h4 className="font-semibold mb-3">Dokumen Yang Dimuat Naik</h4>
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 bg-white border-2 border-orange-200 rounded-lg shadow-sm">
+                  <h3 className="text-base font-semibold text-orange-900 mb-3 pb-2 border-b border-orange-300 flex items-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    Dokumen Yang Dimuat Naik
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
                     {selectedApp.documents.icCopy && (
                       <a 
                         href={selectedApp.documents.icCopy} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        className="p-3 bg-white border-2 border-orange-200 rounded hover:bg-orange-50 hover:border-orange-400 transition-colors flex items-center gap-2"
                       >
-                        <FileText className="w-5 h-5 text-blue-600" />
-                        <div className="text-sm">
-                          <p className="font-medium">Salinan IC</p>
-                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        <div className="p-2 bg-green-100 rounded">
+                          <FileText className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div className="text-xs">
+                          <p className="font-semibold text-gray-900">Salinan IC</p>
+                          <p className="text-green-600">✓ Dimuat naik</p>
                         </div>
                       </a>
                     )}
@@ -1722,12 +1769,14 @@ export default function AdminPanel() {
                         href={selectedApp.documents.okuCard} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        className="p-3 bg-white border-2 border-orange-200 rounded hover:bg-orange-50 hover:border-orange-400 transition-colors flex items-center gap-2"
                       >
-                        <FileText className="w-5 h-5 text-green-600" />
-                        <div className="text-sm">
-                          <p className="font-medium">Kad OKU</p>
-                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        <div className="p-2 bg-green-100 rounded">
+                          <FileText className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div className="text-xs">
+                          <p className="font-semibold text-gray-900">Kad OKU</p>
+                          <p className="text-green-600">✓ Dimuat naik</p>
                         </div>
                       </a>
                     )}
@@ -1737,12 +1786,14 @@ export default function AdminPanel() {
                         href={selectedApp.documents.drivingLicense} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        className="p-3 bg-white border-2 border-orange-200 rounded hover:bg-orange-50 hover:border-orange-400 transition-colors flex items-center gap-2"
                       >
-                        <FileText className="w-5 h-5 text-purple-600" />
-                        <div className="text-sm">
-                          <p className="font-medium">Lesen Memandu</p>
-                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        <div className="p-2 bg-green-100 rounded">
+                          <FileText className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div className="text-xs">
+                          <p className="font-semibold text-gray-900">Lesen Memandu</p>
+                          <p className="text-green-600">✓ Dimuat naik</p>
                         </div>
                       </a>
                     )}
@@ -1752,12 +1803,14 @@ export default function AdminPanel() {
                         href={selectedApp.documents.passportPhoto} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        className="p-3 bg-white border-2 border-orange-200 rounded hover:bg-orange-50 hover:border-orange-400 transition-colors flex items-center gap-2"
                       >
-                        <ImageIcon className="w-5 h-5 text-orange-600" />
-                        <div className="text-sm">
-                          <p className="font-medium">Gambar Passport</p>
-                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        <div className="p-2 bg-green-100 rounded">
+                          <ImageIcon className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div className="text-xs">
+                          <p className="font-semibold text-gray-900">Gambar Passport</p>
+                          <p className="text-green-600">✓ Dimuat naik</p>
                         </div>
                       </a>
                     )}
@@ -1767,12 +1820,14 @@ export default function AdminPanel() {
                         href={selectedApp.documents.tanggunganSignature} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        className="p-3 bg-white border-2 border-orange-200 rounded hover:bg-orange-50 hover:border-orange-400 transition-colors flex items-center gap-2"
                       >
-                        <FileText className="w-5 h-5 text-red-600" />
-                        <div className="text-sm">
-                          <p className="font-medium">Tandatangan Penjaga</p>
-                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        <div className="p-2 bg-green-100 rounded">
+                          <FileText className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div className="text-xs">
+                          <p className="font-semibold text-gray-900">Tandatangan</p>
+                          <p className="text-green-600">✓ Dimuat naik</p>
                         </div>
                       </a>
                     )}
@@ -1863,19 +1918,53 @@ export default function AdminPanel() {
 
       {/* Edit Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-10xl w-[120vw] max-h-[100vh] overflow-y-auto">
+        <DialogContent className="max-w-[90vw] w-[90vw] h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>{language === 'en' ? 'Edit Application Details' : 'Kemaskini Butiran Permohonan'}</DialogTitle>
-            <DialogDescription>
-              {language === 'en' ? 'Update applicant information and location' : 'Kemaskini maklumat pemohon dan lokasi'}
-              {selectedApp && ` - No. Id: ${selectedApp.ref_no}`}
-            </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-6">
-            {/* Applicant Information */}
-            <div className="space-y-4">
-              <h4 className="font-semibold border-b pb-2">{language === 'en' ? 'Applicant Information' : 'Maklumat Pemohon'}</h4>
+          {/* Step Indicator */}
+          <div className="flex items-center justify-center gap-2 py-4 border-b">
+            <div className="flex items-center gap-2">
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${editStep >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                1
+              </div>
+              <span className={`text-sm font-medium ${editStep >= 1 ? 'text-blue-900' : 'text-gray-500'}`}>
+                {language === 'en' ? 'Applicant Info' : 'Maklumat Pemohon'}
+              </span>
+            </div>
+            
+            <div className={`w-16 h-1 mx-2 rounded ${editStep >= 2 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+            
+            <div className="flex items-center gap-2">
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${editStep >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                2
+              </div>
+              <span className={`text-sm font-medium ${editStep >= 2 ? 'text-blue-900' : 'text-gray-500'}`}>
+                {language === 'en' ? 'Location & Map' : 'Lokasi & Peta'}
+              </span>
+            </div>
+            
+            <div className={`w-16 h-1 mx-2 rounded ${editStep >= 3 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+            
+            <div className="flex items-center gap-2">
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${editStep >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                3
+              </div>
+              <span className={`text-sm font-medium ${editStep >= 3 ? 'text-blue-900' : 'text-gray-500'}`}>
+                {language === 'en' ? 'Documents' : 'Dokumen'}
+              </span>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {/* STEP 1: Applicant Information */}
+            {editStep === 1 && (
+            <div className="p-4 bg-white border-2 border-blue-200 rounded-lg shadow-sm">
+              <h4 className="text-base font-semibold text-blue-900 mb-3 pb-2 border-b border-blue-300 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                {language === 'en' ? 'Applicant Information' : 'Maklumat Pemohon'}
+              </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-name">{language === 'en' ? 'Name' : 'Nama'} *</Label>
@@ -1943,10 +2032,15 @@ export default function AdminPanel() {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Location Map */}
-            <div className="space-y-4">
-              <h4 className="font-semibold border-b pb-2">{language === 'en' ? 'Location on Map' : 'Lokasi Pada Peta'}</h4>
+            {/* STEP 2: Location Map */}
+            {editStep === 2 && (
+            <div className="p-4 bg-white border-2 border-green-200 rounded-lg shadow-sm">
+              <h4 className="text-base font-semibold text-green-900 mb-3 pb-2 border-b border-green-300 flex items-center gap-2">
+                <Map className="w-4 h-4" />
+                {language === 'en' ? 'Location on Map' : 'Lokasi Pada Peta'}
+              </h4>
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <Label>{language === 'en' ? 'Latitude' : 'Latitud'}</Label>
@@ -1994,10 +2088,15 @@ export default function AdminPanel() {
                 }}
               />
             </div>
+            )}
 
-            {/* Document Upload Section */}
-            <div className="space-y-4">
-              <h4 className="font-semibold border-b pb-2">{language === 'en' ? 'Documents' : 'Dokumen'}</h4>
+            {/* STEP 3: Document Upload Section */}
+            {editStep === 3 && (
+            <div className="p-4 bg-white border-2 border-orange-200 rounded-lg shadow-sm">
+              <h4 className="text-base font-semibold text-orange-900 mb-3 pb-2 border-b border-orange-300 flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                {language === 'en' ? 'Documents' : 'Dokumen'}
+              </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* IC Copy */}
                 <div>
@@ -2135,26 +2234,34 @@ export default function AdminPanel() {
                 )}
               </div>
             </div>
+            )}
           </div>
 
-          <DialogFooter className="mt-6">
-            <Button variant="outline" onClick={() => setShowEditModal(false)} disabled={isUpdating}>
-              <X className="w-4 h-4 mr-2" />
-              {language === 'en' ? 'Cancel' : 'Batal'}
-            </Button>
-            <Button onClick={handleSaveEdit} disabled={isUpdating}>
-              {isUpdating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  {language === 'en' ? 'Saving...' : 'Menyimpan...'}
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  {language === 'en' ? 'Save Changes' : 'Simpan Perubahan'}
-                </>
-              )}
-            </Button>
+          <DialogFooter className="gap-2">
+            {editStep > 1 && (
+              <Button variant="outline" onClick={() => setEditStep(editStep - 1)} disabled={isUpdating}>
+                ← {language === 'en' ? 'Back' : 'Kembali'}
+              </Button>
+            )}
+            {editStep < 3 ? (
+              <Button onClick={() => setEditStep(editStep + 1)}>
+                {language === 'en' ? 'Next' : 'Seterusnya'} →
+              </Button>
+            ) : (
+              <Button onClick={handleSaveEdit} disabled={isUpdating}>
+                {isUpdating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    {language === 'en' ? 'Saving...' : 'Menyimpan...'}
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    {language === 'en' ? 'Save Changes' : 'Simpan Perubahan'}
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2245,22 +2352,37 @@ export default function AdminPanel() {
             </div>
 
             {importFile && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-700">
-                  <span className="font-medium">{language === 'en' ? 'Selected file:' : 'Fail dipilih:'}</span> {importFile.name}
-                </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  {language === 'en' ? 'Size:' : 'Saiz:'} {(importFile.size / 1024).toFixed(2)} KB
-                </p>
+              <div className="p-3 bg-green-50 border border-green-200 rounded flex items-start gap-2">
+                <div className="p-1.5 bg-green-100 rounded">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-green-900">
+                    <span className="font-medium">{language === 'en' ? 'Selected file:' : 'Fail dipilih:'}</span> {importFile.name}
+                  </p>
+                  <p className="text-xs text-green-700 mt-1">
+                    {language === 'en' ? 'Size:' : 'Saiz:'} {(importFile.size / 1024).toFixed(2)} KB
+                  </p>
+                </div>
               </div>
             )}
 
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-xs text-yellow-800 mb-2">
-                <strong>{language === 'en' ? 'Required columns (in exact order):' : 'Lajur yang diperlukan (mengikut susunan tepat):'}</strong>
-              </p>
-              <div className="max-h-40 overflow-y-auto">
-                <ol className="text-xs text-yellow-700 space-y-1 ml-4 list-decimal">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg shadow-sm">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-2 bg-blue-100 rounded">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-blue-900 mb-1">
+                    {language === 'en' ? 'Column Format' : 'Format Lajur'}
+                  </h4>
+                  <p className="text-xs text-blue-700">
+                    {language === 'en' ? 'Follow exact order' : 'Ikut susunan tepat ini'}
+                  </p>
+                </div>
+              </div>
+              <div className="max-h-40 overflow-y-auto mb-3 bg-white rounded p-3 border border-blue-200">
+                <ol className="text-sm text-gray-700 space-y-1 ml-4 list-decimal">
                   <li>No. Siri</li>
                   <li>Jenis</li>
                   <li>No. IC</li>
@@ -2278,14 +2400,20 @@ export default function AdminPanel() {
                   <li>Sesi</li>
                 </ol>
               </div>
-              <p className="text-xs text-yellow-700 mt-3">
-                <strong>{language === 'en' ? 'Note:' : 'Nota:'}</strong> {language === 'en' 
-                  ? 'Download CSV from Dashboard to get the correct format template.'
-                  : 'Muat turun CSV dari Dashboard untuk mendapat templat format yang betul.'}
-              </p>
-              <p className="text-xs text-yellow-700 mt-2">
-                <strong>Kategori OKU yang sah:</strong> Penglihatan, Pendengaran, Fizikal, Pembelajaran, Mental, Pelbagai Kecacatan, Lain-lain
-              </p>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => {
+                  // Download template CSV
+                  const link = document.createElement('a');
+                  link.href = '/template.csv';
+                  link.download = 'template-import-oku.csv';
+                  link.click();
+                }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                {language === 'en' ? 'Download Template' : 'Muat Turun Templat'}
+              </Button>
             </div>
           </div>
 
