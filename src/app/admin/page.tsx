@@ -58,9 +58,6 @@ export default function AdminPanel() {
   // Selection state
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   
-  // Edit modal step state (3-page wizard)
-  const [editStep, setEditStep] = useState<1 | 2 | 3>(1);
-  
   // Toggle row selection
   const toggleRowSelection = (appId: string) => {
     setSelectedRows(prev => {
@@ -293,20 +290,20 @@ export default function AdminPanel() {
   // Helper to check if status is successful (same as dashboard)
   const isSuccessStatus = (status: string) => ['Diluluskan', 'Sedia Diambil', 'Telah Diambil'].includes(status);
 
-  // Handle KML download - Use filteredApps with session filter
+  // Handle KML download using dummy data - ONLY successful applications (same as dashboard map)
   const handleKMLDownload = async () => {
     try {
       const { generateKML } = await import('@/lib/kml');
       
-      // Use filteredApps (respects all current filters) and apply session filter
-      let kmlApps = filteredApps.filter(app => {
+      // Filter dummy applications - ONLY SUCCESSFUL (Berjaya) apps with coordinates
+      let filteredApps = dummyApps.filter(app => {
         // Only include apps with coordinates
         if (!app.latitude || !app.longitude) return false;
         
-        // IMPORTANT: Only include successful applications (Diluluskan, Sedia Diambil, Telah Diambil)
+        // IMPORTANT: Only include successful applications (same as dashboard map)
         if (!isSuccessStatus(app.status)) return false;
         
-        // Apply session filter
+        // Filter by session
         if (kmlSession !== 'all') {
           if (app.approved_date) {
             const year = new Date(app.approved_date).getFullYear();
@@ -317,15 +314,20 @@ export default function AdminPanel() {
           }
         }
         
+        // Filter by mukim
+        if (kmlMukim !== 'all') {
+          if (app.mukim !== kmlMukim) return false;
+        }
+        
         return true;
       });
 
-      if (kmlApps.length === 0) {
+      if (filteredApps.length === 0) {
         toast.error('Tiada data untuk dimuat turun');
         return;
       }
 
-      const kmlContent = generateKML(kmlApps);
+      const kmlContent = generateKML(filteredApps);
       const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -334,6 +336,7 @@ export default function AdminPanel() {
       // Generate filename
       let filename = 'peta-interaktif';
       if (kmlSession !== 'all') filename += `-${kmlSession.replace('/', '-')}`;
+      if (kmlMukim !== 'all') filename += `-${kmlMukim}`;
       filename += '.kml';
       
       a.download = filename;
@@ -342,7 +345,7 @@ export default function AdminPanel() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      toast.success(`KML dimuat turun: ${kmlApps.length} lokasi`);
+      toast.success(`KML dimuat turun: ${filteredApps.length} lokasi`);
     } catch (error) {
       console.error('Error generating KML:', error);
       toast.error('Gagal menjana fail KML');
@@ -546,18 +549,22 @@ export default function AdminPanel() {
       const unmappedActual = actualColumns.filter(col => !columnMapping[col]);
       
       if (missingColumns.length > 0) {
-        toast.error(
-          <div className="space-y-1.5">
-            <p className="font-bold text-sm">Format Tidak Lengkap</p>
-            <p className="text-xs">Lajur hilang: <span className="font-semibold">{missingColumns.join(', ')}</span></p>
-            <p className="text-[10px] text-muted-foreground">Muat turun templat untuk format betul.</p>
-          </div>,
-          { 
-            duration: 6000,
-            closeButton: true,
-            dismissible: true
-          }
-        );
+        let errorMsg = language === 'en' 
+          ? '❌ Format CSV tidak lengkap!\n\n' 
+          : '❌ Format CSV tidak lengkap!\n\n';
+        
+        // Only show missing columns
+        errorMsg += '❌ ' + (language === 'en' ? 'Kolum wajib yang hilang: ' : 'Kolum wajib yang hilang: ') + missingColumns.join(', ');
+        
+        errorMsg += '\n\n💡 ' + (language === 'en' 
+          ? 'Sila muat turun templat CSV dari dashboard untuk melihat format yang betul.' 
+          : 'Sila muat turun templat CSV dari dashboard untuk melihat format yang betul.');
+        
+        toast.error(errorMsg, { 
+          duration: Infinity, // Don't auto-dismiss
+          closeButton: true,  // Show close button
+          dismissible: true   // Allow manual dismiss
+        });
         setIsImporting(false);
         return;
       }
@@ -582,44 +589,13 @@ export default function AdminPanel() {
       const results = await bulkImportApplications(remappedData);
       console.log('✅ Import completed:', results);
       
-      // Show results with detailed error messages
+      // Show results
       if (results.success > 0) {
         toast.success(`${language === 'en' ? 'Successfully imported' : 'Berjaya diimport'}: ${results.success} ${language === 'en' ? 'records' : 'rekod'}`);
       }
       
       if (results.failed > 0) {
-        // Create detailed error message with line-by-line breakdown
-        const errorDetails = results.errors.map((err: any) => {
-          const rowData = err.data || {};
-          const nama = rowData['Nama'] || rowData['nama'] || rowData['NAMA'] || 'N/A';
-          const ic = rowData['No. IC'] || rowData['no. ic'] || rowData['NO. IC'] || 'N/A';
-          return `Baris ${err.row}: ${nama} (IC: ${ic}) - ${err.error}`;
-        }).join('\n');
-        
-        toast.error(
-          <div className="space-y-2 max-w-md">
-            <p className="font-bold text-sm">Gagal Import: {results.failed} rekod</p>
-            <div className="max-h-32 overflow-y-auto text-xs space-y-1">
-              {results.errors.slice(0, 5).map((err: any, idx: number) => {
-                const nama = err.data?.['Nama'] || err.data?.['nama'] || 'N/A';
-                const ic = err.data?.['No. IC'] || err.data?.['No IC'] || err.data?.['ic'] || 'N/A';
-                return (
-                  <div key={idx} className="p-1.5 bg-red-50 rounded text-red-800">
-                    Baris {err.row}: {nama} (IC: {ic}) - {err.error}
-                  </div>
-                );
-              })}
-              {results.errors.length > 5 && (
-                <p className="text-muted-foreground text-center">...dan {results.errors.length - 5} lagi</p>
-              )}
-            </div>
-          </div>,
-          {
-            duration: 8000,
-            closeButton: true,
-            dismissible: true
-          }
-        );
+        toast.error(`${language === 'en' ? 'Failed to import' : 'Gagal diimport'}: ${results.failed} ${language === 'en' ? 'records' : 'rekod'}`);
         console.error('❌ Import errors:', results.errors);
       }
       
@@ -835,7 +811,6 @@ export default function AdminPanel() {
   // Open edit modal with current application data
   const handleOpenEditModal = (app: Application) => {
     setSelectedApp(app);
-    setEditStep(1); // Reset to step 1
     
     // Parse address
     let street = '';
@@ -1026,15 +1001,15 @@ export default function AdminPanel() {
             <div className="flex gap-2">
               {isAdminBoss && (
                 <>
-                  <Button variant="outline" onClick={() => router.push('/admin/manage-admins')} style={{width: '200px'}}>
+                  <Button variant="outline" onClick={() => router.push('/admin/manage-admins')}>
                     {language === 'en' ? 'Manage Admins' : 'Urus Admin'}
                   </Button>
-                  <Button variant="outline" onClick={() => router.push('/admin/manage-footer')} style={{width: '200px'}}>
+                  <Button variant="outline" onClick={() => router.push('/admin/manage-footer')}>
                     {language === 'en' ? 'Footer' : 'Footer'}
                   </Button>
                 </>
               )}
-              <Button variant="outline" onClick={handleLogout} style={{width: '200px'}}>
+              <Button variant="outline" onClick={handleLogout}>
                 {t('admin.logout')}
               </Button>
             </div>
@@ -1068,7 +1043,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Application' : 'Permohonan'}</Label>
                     <Select value={permohonanFilter} onValueChange={setPermohonanFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1083,7 +1058,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Stage' : 'Peringkat'}</Label>
                     <Select value={peringkatFilter} onValueChange={setPeringkatFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1101,7 +1076,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Status' : 'Status'}</Label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1116,7 +1091,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Month Applied' : 'Bulan Mohon'}</Label>
                     <Select value={bulanMohonFilter} onValueChange={setBulanMohonFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1141,7 +1116,7 @@ export default function AdminPanel() {
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Year Applied' : 'Tahun Mohon'}</Label>
                     <Select value={tahunMohonFilter} onValueChange={setTahunMohonFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1175,7 +1150,6 @@ export default function AdminPanel() {
                     variant="outline" 
                     onClick={() => setShowImportModal(true)}
                     className="gap-2"
-                    style={{width: '200px'}}
                   >
                     <Upload className="w-4 h-4" />
                     {language === 'en' ? 'Import CSV/Excel' : 'Import CSV/Excel'}
@@ -1205,7 +1179,6 @@ export default function AdminPanel() {
                           variant="outline"
                           onClick={handleBulkCopy}
                           className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          style={{width: '200px'}}
                         >
                           <Copy className="w-4 h-4 mr-2" />
                           {language === 'en' ? 'Copy' : 'Salin'}
@@ -1215,7 +1188,6 @@ export default function AdminPanel() {
                           variant="outline"
                           onClick={handleBulkDelete}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          style={{width: '200px'}}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           {language === 'en' ? 'Delete' : 'Padam'}
@@ -1378,126 +1350,94 @@ export default function AdminPanel() {
                   </Table>
                 </div>
                 
-                {/* Pagination Controls - Mobile Responsive */}
+                {/* Pagination Controls */}
               {!loading && filteredApps.length > 0 && (
-                <div className="px-4 py-4 border-t">
-                  {/* Desktop View */}
-                  <div className="hidden md:flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-muted-foreground">
-                        {language === 'en' 
-                          ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} of ${filteredApps.length} records`
-                          : `Memaparkan ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} daripada ${filteredApps.length} rekod`}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {language === 'en' ? 'Items per page:' : 'Item setiap halaman:'}
-                        </span>
-                        <Select 
-                          value={itemsPerPage.toString()} 
-                          onValueChange={(value) => {
-                            setItemsPerPage(parseInt(value));
-                            setCurrentPage(1);
-                          }}
-                        >
-                          <SelectTrigger className="w-[80px] h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="10">10</SelectItem>
-                            <SelectItem value="25">25</SelectItem>
-                            <SelectItem value="50">50</SelectItem>
-                            <SelectItem value="100">100</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                <div className="flex items-center justify-between px-4 py-4 border-t">
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-muted-foreground">
+                      {language === 'en' 
+                        ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} of ${filteredApps.length} records`
+                        : `Memaparkan ${startIndex + 1}-${Math.min(endIndex, filteredApps.length)} daripada ${filteredApps.length} rekod`}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        disabled={currentPage === 1}
+                      <span className="text-sm text-muted-foreground">
+                        {language === 'en' ? 'Items per page:' : 'Item setiap halaman:'}
+                      </span>
+                      <Select 
+                        value={itemsPerPage.toString()} 
+                        onValueChange={(value) => {
+                          setItemsPerPage(parseInt(value));
+                          setCurrentPage(1);
+                        }}
                       >
-                        {language === 'en' ? 'Previous' : 'Sebelum'}
-                      </Button>
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                          let pageNum;
-                          if (totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (currentPage >= totalPages - 2) {
-                            pageNum = totalPages - 4 + i;
-                          } else {
-                            pageNum = currentPage - 2 + i;
-                          }
-                          
-                          return (
-                            <Button
-                              key={pageNum}
-                              variant={currentPage === pageNum ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setCurrentPage(pageNum)}
-                              className="w-8 h-8 p-0"
-                            >
-                              {pageNum}
-                            </Button>
-                          );
-                        })}
-                        {totalPages > 5 && currentPage < totalPages - 2 && (
-                          <>
-                            <span className="px-2">...</span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setCurrentPage(totalPages)}
-                              className="w-8 h-8 p-0"
-                            >
-                              {totalPages}
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
-                      >
-                        {language === 'en' ? 'Next' : 'Seterusnya'}
-                      </Button>
+                        <SelectTrigger className="w-[80px] h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="25">25</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                          <SelectItem value="100">100</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  
-                  {/* Mobile View - Large Buttons */}
-                  <div className="md:hidden space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        disabled={currentPage === 1}
-                        className="flex-1"
-                      >
-                        ◀ {language === 'en' ? 'Previous' : 'Sebelumnya'}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
-                        className="flex-1"
-                      >
-                        {language === 'en' ? 'Next' : 'Seterusnya'} ▶
-                      </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      {language === 'en' ? 'Previous' : 'Sebelum'}
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="w-8 h-8 p-0"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                      {totalPages > 5 && currentPage < totalPages - 2 && (
+                        <>
+                          <span className="px-2">...</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(totalPages)}
+                            className="w-8 h-8 p-0"
+                          >
+                            {totalPages}
+                          </Button>
+                        </>
+                      )}
                     </div>
-                    <div className="text-center text-sm text-muted-foreground">
-                      {language === 'en' 
-                        ? `Page ${currentPage} of ${totalPages} • ${filteredApps.length} total records`
-                        : `Halaman ${currentPage} daripada ${totalPages} • ${filteredApps.length} rekod`}
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      {language === 'en' ? 'Next' : 'Seterusnya'}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1604,11 +1544,11 @@ export default function AdminPanel() {
                     ? 'Download successful applications map data in KML format (same as dashboard interactive map)' 
                     : 'Muat turun data peta permohonan berjaya dalam format KML (sama seperti peta interaktif dashboard)'}
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                   <div>
                     <Label className="mb-2 block">{language === 'en' ? 'Session' : 'Sesi'}</Label>
                     <Select value={kmlSession} onValueChange={setKmlSession}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1637,7 +1577,7 @@ export default function AdminPanel() {
 
       {/* Detail Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-[90vw] w-[90vw] h-[95vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -1671,249 +1611,162 @@ export default function AdminPanel() {
             </div>
           </DialogHeader>
           {selectedApp && (
-            <div className="flex-1 overflow-y-auto px-2">
-              <div className="space-y-2 max-w-5xl mx-auto">
-                {/* Row 1 - Applicant Info */}
-                <div className="space-y-2">
-                  {selectedApp.no_siri && (
-                    <div className="p-2 bg-gradient-to-r from-green-50 to-green-100 border border-green-400 rounded">
-                      <p className="text-[10px] font-semibold text-green-700">📋 NO. SIRI</p>
-                      <p className="text-sm font-bold text-green-900 font-mono">{selectedApp.no_siri}</p>
-                    </div>
+            <div className="space-y-4">
+              {selectedApp.no_siri && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm font-medium text-green-800">No. Siri</p>
+                  <p className="text-lg font-bold text-green-900 font-mono">{selectedApp.no_siri}</p>
+                </div>
+              )}
+              
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold">Maklumat Pemohon</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Nama:</span> {selectedApp.pemohon.name}</div>
+                  <div><span className="text-muted-foreground">IC:</span> <span className="font-mono">{formatIC(selectedApp.pemohon.ic)}</span></div>
+                  <div><span className="text-muted-foreground">Kad OKU:</span> {selectedApp.pemohon.okuCard}</div>
+                  <div><span className="text-muted-foreground">Telefon:</span> {selectedApp.pemohon.phone}</div>
+                  <div><span className="text-muted-foreground">No. Kereta:</span> {selectedApp.pemohon.carReg}</div>
+                  <div><span className="text-muted-foreground">No. Akaun Cukai Taksiran:</span> {selectedApp.pemohon.taxAccount || '-'}</div>
+                  <div><span className="text-muted-foreground">Kategori:</span> {selectedApp.pemohon.okuCategory}</div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Alamat:</span> {typeof selectedApp.pemohon.address === 'object' ? selectedApp.pemohon.address.full_address || `${selectedApp.pemohon.address.street}, ${selectedApp.pemohon.address.mukim}, ${selectedApp.pemohon.address.daerah}` : selectedApp.pemohon.address}</div>
+                  {(selectedApp.latitude || selectedApp.longitude) && (
+                    <div className="col-span-2"><span className="text-muted-foreground">Koordinat:</span> {selectedApp.latitude?.toFixed(6)}, {selectedApp.longitude?.toFixed(6)}</div>
                   )}
-                  
-                  <div className="p-2 bg-white border border-gray-200 rounded">
-                    <h4 className="font-bold text-xs mb-1 pb-1 border-b border-blue-500 text-blue-900">👤 Maklumat Pemohon</h4>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between items-center py-1 border-b">
-                        <span className="text-gray-600 font-medium">Nama:</span>
-                        <span className="font-bold text-gray-900">{selectedApp.pemohon.name}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-1 border-b">
-                        <span className="text-gray-600 font-medium">IC:</span>
-                        <span className="font-mono font-bold text-gray-900">{formatIC(selectedApp.pemohon.ic)}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-1 border-b">
-                        <span className="text-gray-600 font-medium">Kad OKU:</span>
-                        <span className="font-bold text-gray-900">{selectedApp.pemohon.okuCard}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-1 border-b">
-                        <span className="text-gray-600 font-medium">Telefon:</span>
-                        <span className="font-bold text-gray-900">{selectedApp.pemohon.phone}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-1 border-b">
-                        <span className="text-gray-600 font-medium">No. Kereta:</span>
-                        <span className="font-bold text-gray-900">{selectedApp.pemohon.carReg}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-1 border-b">
-                        <span className="text-gray-600 font-medium">Cukai Taksiran:</span>
-                        <span className="font-bold text-gray-900">{selectedApp.pemohon.taxAccount || '-'}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-1">
-                        <span className="text-gray-600 font-medium">Kategori OKU:</span>
-                        <span className="font-bold text-blue-700">{selectedApp.pemohon.okuCategory}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-2 bg-white border border-gray-200 rounded">
-                    <h4 className="font-bold text-xs mb-1 text-gray-700">📍 Alamat</h4>
-                    <p className="text-xs leading-relaxed text-gray-900">{typeof selectedApp.pemohon.address === 'object' ? selectedApp.pemohon.address.full_address || `${selectedApp.pemohon.address.street}, ${selectedApp.pemohon.address.mukim}, ${selectedApp.pemohon.address.daerah}` : selectedApp.pemohon.address}</p>
-                    <div className="mt-1 space-y-0.5">
-                      {selectedApp.mukim && (
-                        <p className="text-xs text-gray-600">Mukim: <span className="font-semibold">{selectedApp.mukim}</span></p>
-                      )}
-                      {selectedApp.daerah && (
-                        <p className="text-xs text-gray-600">Daerah: <span className="font-semibold">{selectedApp.daerah}</span></p>
-                      )}
-                      {(selectedApp.latitude || selectedApp.longitude) && (
-                        <p className="text-xs text-gray-600 font-mono">📍 {selectedApp.latitude?.toFixed(6)}, {selectedApp.longitude?.toFixed(6)}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {selectedApp.tanggungan && (
-                    <div className="p-2 bg-blue-50 border border-blue-300 rounded">
-                      <h4 className="font-bold text-xs mb-1 text-blue-900">👨‍👩‍👧 Maklumat Tanggungan</h4>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-blue-700">Nama Penjaga:</span>
-                          <span className="font-bold text-blue-900">{selectedApp.tanggungan.name}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-700">Hubungan:</span>
-                          <span className="font-bold text-blue-900">{selectedApp.tanggungan.relation}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-700">IC Penjaga:</span>
-                          <span className="font-bold text-blue-900">{selectedApp.tanggungan.ic}</span>
-                        </div>
-                      </div>
-                    </div>
+                  {selectedApp.mukim && (
+                    <div><span className="text-muted-foreground">Mukim:</span> {selectedApp.mukim}</div>
+                  )}
+                  {selectedApp.daerah && (
+                    <div><span className="text-muted-foreground">Daerah:</span> {selectedApp.daerah}</div>
                   )}
                 </div>
-                
-                {/* Row 2 - Status & Expiry */}
-                <div className="space-y-2">
+              </div>
 
-                  {/* Expiry Date Display - Compact like No Siri */}
-                  {(selectedApp.status === 'Diluluskan' || selectedApp.status === 'Sedia Diambil' || selectedApp.status === 'Telah Diambil') && selectedApp.expiry_date && (
-                    <div className={`p-2 border rounded ${
-                      new Date(selectedApp.expiry_date) < new Date()
-                        ? 'bg-gradient-to-r from-red-50 to-red-100 border-red-400'
-                        : 'bg-gradient-to-r from-green-50 to-green-100 border-green-400'
-                    }`}>
-                      <p className={`text-[10px] font-semibold ${new Date(selectedApp.expiry_date) < new Date() ? 'text-red-700' : 'text-green-700'}`}>
-                        {new Date(selectedApp.expiry_date) < new Date() ? '⚠️ TAMAT TEMPOH' : '📅 TARIKH TAMAT TEMPOH'}
-                      </p>
-                      <p className={`text-sm font-bold font-mono ${
-                        new Date(selectedApp.expiry_date) < new Date() ? 'text-red-900' : 'text-green-900'
-                      }`}>
-                        {new Date(selectedApp.expiry_date).toLocaleDateString('ms-MY')}
-                      </p>
-                      {new Date(selectedApp.expiry_date) < new Date() && (
-                        <p className="text-[10px] text-red-700 mt-0.5">Pembaharuan diperlukan</p>
-                      )}
-                    </div>
-                  )}
-                  
-                  <div className="p-2 bg-white border border-gray-200 rounded">
-                    <h4 className="font-bold text-xs mb-1 pb-1 border-b border-purple-500 text-purple-900">📊 Status Permohonan</h4>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between items-center py-1 border-b">
-                        <span className="text-gray-600 font-medium">Status:</span>
-                        <span className="font-black text-xs text-purple-700">{selectedApp.status}</span>
-                      </div>
-                      {selectedApp.submitted_date && (
-                        <div className="flex justify-between items-center py-1 border-b">
-                          <span className="text-gray-600 font-medium">Tarikh Mohon:</span>
-                          <span className="font-bold text-gray-900">{new Date(selectedApp.submitted_date).toLocaleDateString('ms-MY')}</span>
-                        </div>
-                      )}
-                      {selectedApp.approved_date && (
-                        <div className="flex justify-between items-center py-1 border-b">
-                          <span className="text-gray-600 font-medium">Tarikh Lulus:</span>
-                          <span className="font-bold text-gray-900">{new Date(selectedApp.approved_date).toLocaleDateString('ms-MY')}</span>
-                        </div>
-                      )}
-                      {selectedApp.collected_date && (
-                        <div className="flex justify-between items-center py-1">
-                          <span className="text-gray-600 font-medium">Tarikh Ambil:</span>
-                          <span className="font-bold text-gray-900">{new Date(selectedApp.collected_date).toLocaleDateString('ms-MY')}</span>
-                        </div>
-                      )}
-                    </div>
+              {selectedApp.tanggungan && (
+                <div>
+                  <h4 className="font-semibold mb-2">Maklumat Tanggungan</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-muted-foreground">Nama Penjaga:</span> {selectedApp.tanggungan.name}</div>
+                    <div><span className="text-muted-foreground">Hubungan:</span> {selectedApp.tanggungan.relation}</div>
+                    <div><span className="text-muted-foreground">IC Penjaga:</span> {selectedApp.tanggungan.ic}</div>
                   </div>
-                  
-                  {selectedApp.admin_notes && (
-                    <div className="p-2 bg-red-50 border-l-4 border-l-red-600 rounded">
-                      <h4 className="font-bold text-red-900 mb-1 flex items-center gap-2 text-xs">
-                        <AlertCircle className="w-4 h-4" />
-                        Catatan Admin
-                      </h4>
-                      <p className="text-xs text-red-800 leading-relaxed">{selectedApp.admin_notes}</p>
-                    </div>
+                </div>
+              )}
+
+              {selectedApp.admin_notes && (
+                <div className="p-4 bg-red-50 border-l-4 border-l-red-500 rounded">
+                  <h4 className="font-semibold text-red-800 mb-2">Catatan Admin</h4>
+                  <p className="text-sm text-red-700">{selectedApp.admin_notes}</p>
+                </div>
+              )}
+
+              {/* Expiry Date Display */}
+              {(selectedApp.status === 'Diluluskan' || selectedApp.status === 'Sedia Diambil' || selectedApp.status === 'Telah Diambil') && selectedApp.expiry_date && (
+                <div className={`p-4 border-l-4 rounded ${
+                  new Date(selectedApp.expiry_date) < new Date()
+                    ? 'bg-red-50 border-l-red-500'
+                    : 'bg-green-50 border-l-green-500'
+                }`}>
+                  <h4 className={`font-semibold mb-2 ${
+                    new Date(selectedApp.expiry_date) < new Date() ? 'text-red-800' : 'text-green-800'
+                  }`}>
+                    {new Date(selectedApp.expiry_date) < new Date() ? '⚠️ Stiker Tamat Tempoh' : 'Tarikh Tamat Tempoh Stiker'}
+                  </h4>
+                  <p className={`text-sm font-mono ${
+                    new Date(selectedApp.expiry_date) < new Date() ? 'text-red-700' : 'text-green-700'
+                  }`}>
+                    {new Date(selectedApp.expiry_date).toLocaleDateString('ms-MY')}
+                  </p>
+                  {new Date(selectedApp.expiry_date) < new Date() && (
+                    <p className="text-xs text-red-600 mt-1">Pembaharuan diperlukan</p>
                   )}
                 </div>
-                
-                {/* Row 3 - Documents */}
-                <div className="space-y-2">
+              )}
 
-                  <div>
-                    <h4 className="font-bold text-xs mb-1 pb-1 border-b border-orange-500 text-orange-900">📎 Dokumen Yang Dimuat Naik</h4>
-                    {selectedApp.documents ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        {selectedApp.documents.icCopy && (
-                          <a 
-                            href={selectedApp.documents.icCopy} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="block p-2 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-300 rounded-lg hover:shadow-md transition-all duration-200"
-                          >
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-6 h-6 text-blue-600" />
-                              <div>
-                                <p className="font-bold text-blue-900 text-xs">Salinan IC</p>
-                                <p className="text-[10px] text-blue-700">Klik lihat</p>
-                              </div>
-                            </div>
-                          </a>
-                        )}
+              {/* Documents Section */}
+              {selectedApp.documents && (
+                <div>
+                  <h4 className="font-semibold mb-3">Dokumen Yang Dimuat Naik</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedApp.documents.icCopy && (
+                      <a 
+                        href={selectedApp.documents.icCopy} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      >
+                        <FileText className="w-5 h-5 text-blue-600" />
+                        <div className="text-sm">
+                          <p className="font-medium">Salinan IC</p>
+                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        </div>
+                      </a>
+                    )}
                     
-                        {selectedApp.documents.okuCard && (
-                          <a 
-                            href={selectedApp.documents.okuCard} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="block p-2 bg-gradient-to-r from-green-50 to-green-100 border border-green-300 rounded-lg hover:shadow-md transition-all duration-200"
-                          >
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-6 h-6 text-green-600" />
-                              <div>
-                                <p className="font-bold text-green-900 text-xs">Kad OKU</p>
-                                <p className="text-[10px] text-green-700">Klik lihat</p>
-                              </div>
-                            </div>
-                          </a>
-                        )}
+                    {selectedApp.documents.okuCard && (
+                      <a 
+                        href={selectedApp.documents.okuCard} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      >
+                        <FileText className="w-5 h-5 text-green-600" />
+                        <div className="text-sm">
+                          <p className="font-medium">Kad OKU</p>
+                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        </div>
+                      </a>
+                    )}
                     
-                        {selectedApp.documents.drivingLicense && (
-                          <a 
-                            href={selectedApp.documents.drivingLicense} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="block p-2 bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-300 rounded-lg hover:shadow-md transition-all duration-200"
-                          >
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-6 h-6 text-purple-600" />
-                              <div>
-                                <p className="font-bold text-purple-900 text-xs">Lesen Memandu</p>
-                                <p className="text-[10px] text-purple-700">Klik lihat</p>
-                              </div>
-                            </div>
-                          </a>
-                        )}
+                    {selectedApp.documents.drivingLicense && (
+                      <a 
+                        href={selectedApp.documents.drivingLicense} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      >
+                        <FileText className="w-5 h-5 text-purple-600" />
+                        <div className="text-sm">
+                          <p className="font-medium">Lesen Memandu</p>
+                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        </div>
+                      </a>
+                    )}
                     
-                        {selectedApp.documents.passportPhoto && (
-                          <a 
-                            href={selectedApp.documents.passportPhoto} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="block p-2 bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-300 rounded-lg hover:shadow-md transition-all duration-200"
-                          >
-                            <div className="flex items-center gap-2">
-                              <ImageIcon className="w-6 h-6 text-orange-600" />
-                              <div>
-                                <p className="font-bold text-orange-900 text-xs">Gambar Passport</p>
-                                <p className="text-[10px] text-orange-700">Klik lihat</p>
-                              </div>
-                            </div>
-                          </a>
-                        )}
+                    {selectedApp.documents.passportPhoto && (
+                      <a 
+                        href={selectedApp.documents.passportPhoto} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      >
+                        <ImageIcon className="w-5 h-5 text-orange-600" />
+                        <div className="text-sm">
+                          <p className="font-medium">Gambar Passport</p>
+                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        </div>
+                      </a>
+                    )}
                     
-                        {selectedApp.documents.tanggunganSignature && (
-                          <a 
-                            href={selectedApp.documents.tanggunganSignature} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="block p-2 bg-gradient-to-r from-red-50 to-red-100 border border-red-300 rounded-lg hover:shadow-md transition-all duration-200"
-                          >
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-6 h-6 text-red-600" />
-                              <div>
-                                <p className="font-bold text-red-900 text-xs">Tandatangan</p>
-                                <p className="text-[10px] text-red-700">Klik lihat</p>
-                              </div>
-                            </div>
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-500 text-center py-4">Tiada dokumen dimuat naik</p>
+                    {selectedApp.documents.tanggunganSignature && (
+                      <a 
+                        href={selectedApp.documents.tanggunganSignature} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-3 border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      >
+                        <FileText className="w-5 h-5 text-red-600" />
+                        <div className="text-sm">
+                          <p className="font-medium">Tandatangan Penjaga</p>
+                          <p className="text-xs text-muted-foreground">Klik untuk lihat</p>
+                        </div>
+                      </a>
                     )}
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -1996,194 +1849,301 @@ export default function AdminPanel() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Modal - 3 Page Wizard */}
-      <Dialog open={showEditModal} onOpenChange={(open) => {
-        setShowEditModal(open);
-        if (!open) setEditStep(1); // Reset to step 1 when closing
-      }}>
-        <DialogContent className="max-w-[90vw] w-[90vw] h-[95vh] overflow-hidden flex flex-col">
+      {/* Edit Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-10xl w-[120vw] max-h-[100vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl">{language === 'en' ? 'Edit Application Details' : 'Kemaskini Butiran Permohonan'}</DialogTitle>
-            
-            {/* Step Indicator */}
-            <div className="flex items-center justify-center gap-2 mt-4 pb-3 border-b">
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded ${editStep === 1 ? 'bg-blue-100 text-blue-900 font-bold' : 'bg-gray-100 text-gray-600'}`}>
-                <span className="text-xs">1. Maklumat Pemohon</span>
-              </div>
-              <span className="text-gray-400">→</span>
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded ${editStep === 2 ? 'bg-blue-100 text-blue-900 font-bold' : 'bg-gray-100 text-gray-600'}`}>
-                <span className="text-xs">2. Lokasi & Peta</span>
-              </div>
-              <span className="text-gray-400">→</span>
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded ${editStep === 3 ? 'bg-blue-100 text-blue-900 font-bold' : 'bg-gray-100 text-gray-600'}`}>
-                <span className="text-xs">3. Dokumen</span>
-              </div>
-            </div>
+            <DialogTitle>{language === 'en' ? 'Edit Application Details' : 'Kemaskini Butiran Permohonan'}</DialogTitle>
+            <DialogDescription>
+              {language === 'en' ? 'Update applicant information and location' : 'Kemaskini maklumat pemohon dan lokasi'}
+              {selectedApp && ` - No. Id: ${selectedApp.ref_no}`}
+            </DialogDescription>
           </DialogHeader>
           
-          {/* Step Content */}
-          <div className="flex-1 overflow-y-auto px-2">
-            <div className="space-y-2 max-w-5xl mx-auto">
-              
-              {/* STEP 1: Maklumat Pemohon */}
-              {editStep === 1 && (
-                <div className="p-2 bg-white border border-gray-200 rounded">
-                  <h4 className="font-bold text-xs mb-2 pb-1 border-b border-blue-500 text-blue-900">👤 Maklumat Pemohon</h4>
-                  <div className="grid grid-cols-2 gap-3 mt-2">
-                    <div>
-                      <Label htmlFor="edit-name" className="text-xs">{language === 'en' ? 'Name' : 'Nama'} *</Label>
-                      <Input
-                        id="edit-name"
-                        value={editFormData.name}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
-                        className="text-xs h-8"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-ic" className="text-xs">{language === 'en' ? 'IC Number' : 'No. IC'} *</Label>
-                      <Input id="edit-ic" value={editFormData.ic} onChange={(e) => setEditFormData(prev => ({ ...prev, ic: e.target.value }))} className="text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-okuCard" className="text-xs">{language === 'en' ? 'OKU Card' : 'Kad OKU'} *</Label>
-                      <Input id="edit-okuCard" value={editFormData.okuCard} onChange={(e) => setEditFormData(prev => ({ ...prev, okuCard: e.target.value }))} className="text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-phone" className="text-xs">{language === 'en' ? 'Phone' : 'Telefon'} *</Label>
-                      <Input id="edit-phone" value={editFormData.phone} onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))} className="text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-carReg" className="text-xs">{language === 'en' ? 'Car Reg' : 'No. Kereta'} *</Label>
-                      <Input id="edit-carReg" value={editFormData.carReg} onChange={(e) => setEditFormData(prev => ({ ...prev, carReg: e.target.value }))} className="text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-taxAccount" className="text-xs">{language === 'en' ? 'Tax Account' : 'Cukai Taksiran'}</Label>
-                      <Input id="edit-taxAccount" value={editFormData.taxAccount} onChange={(e) => setEditFormData(prev => ({ ...prev, taxAccount: e.target.value }))} className="text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-okuCategory" className="text-xs">{language === 'en' ? 'OKU Category' : 'Kategori OKU'} *</Label>
-                      <Input id="edit-okuCategory" value={editFormData.okuCategory} onChange={(e) => setEditFormData(prev => ({ ...prev, okuCategory: e.target.value }))} className="text-xs h-8" />
-                    </div>
-                    <div className="col-span-2">
-                      <Label htmlFor="edit-street" className="text-xs">{language === 'en' ? 'Address' : 'Alamat'} *</Label>
-                      <Input id="edit-street" value={editFormData.street} onChange={(e) => setEditFormData(prev => ({ ...prev, street: e.target.value }))} className="text-xs h-8" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 2: Lokasi & Peta */}
-              {editStep === 2 && (
-                <div className="p-2 bg-white border border-gray-200 rounded">
-                  <h4 className="font-bold text-xs mb-2 pb-1 border-b border-blue-500 text-blue-900">📍 Lokasi & Peta</h4>
-                  <div className="grid grid-cols-2 gap-3 mt-2 mb-3">
-                    <div>
-                      <Label className="text-xs">{language === 'en' ? 'Latitude' : 'Latitud'}</Label>
-                      <Input value={editLatitude?.toFixed(6) || ''} disabled className="bg-muted text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">{language === 'en' ? 'Longitude' : 'Longitud'}</Label>
-                      <Input value={editLongitude?.toFixed(6) || ''} disabled className="bg-muted text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Mukim</Label>
-                      <Input value={editMukim} disabled className="bg-muted text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Daerah</Label>
-                      <Input value={editDaerah} disabled className="bg-muted text-xs h-8" />
-                    </div>
-                  </div>
-                  <MapPicker
-                    lat={editLatitude ?? undefined}
-                    lon={editLongitude ?? undefined}
-                    showInstructions={true}
-                    height={350}
-                    onLocationChange={(loc) => {
-                      setEditLatitude(loc.lat);
-                      setEditLongitude(loc.lon);
-                      if (loc.daerah) setEditDaerah(loc.daerah);
-                      if (loc.mukim) setEditMukim(loc.mukim);
-                    }}
+          <div className="space-y-6">
+            {/* Applicant Information */}
+            <div className="space-y-4">
+              <h4 className="font-semibold border-b pb-2">{language === 'en' ? 'Applicant Information' : 'Maklumat Pemohon'}</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-name">{language === 'en' ? 'Name' : 'Nama'} *</Label>
+                  <Input
+                    id="edit-name"
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
                   />
                 </div>
-              )}
-
-              {/* STEP 3: Dokumen */}
-              {editStep === 3 && (
-                <div className="p-2 bg-white border border-gray-200 rounded">
-                  <h4 className="font-bold text-xs mb-2 pb-1 border-b border-blue-500 text-blue-900">📎 Dokumen Sokongan</h4>
-                  <div className="grid grid-cols-2 gap-3 mt-2">
-                    <div>
-                      <Label htmlFor="edit-icCopy" className="text-xs">{language === 'en' ? 'IC Copy' : 'Salinan IC'}</Label>
-                      {currentDocUrls.icCopy && <a href={currentDocUrls.icCopy} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline block mt-1">Lihat Semasa</a>}
-                      <Input id="edit-icCopy" type="file" accept="image/*,.pdf" onChange={(e) => { if (e.target.files?.[0]) setEditDocuments(prev => ({ ...prev, icCopy: e.target.files![0] })); }} className="mt-1 text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-okuCardDoc" className="text-xs">{language === 'en' ? 'OKU Card' : 'Kad OKU'}</Label>
-                      {currentDocUrls.okuCard && <a href={currentDocUrls.okuCard} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline block mt-1">Lihat Semasa</a>}
-                      <Input id="edit-okuCardDoc" type="file" accept="image/*,.pdf" onChange={(e) => { if (e.target.files?.[0]) setEditDocuments(prev => ({ ...prev, okuCard: e.target.files![0] })); }} className="mt-1 text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-drivingLicense" className="text-xs">{language === 'en' ? 'Driving License' : 'Lesen Memandu'}</Label>
-                      {currentDocUrls.drivingLicense && <a href={currentDocUrls.drivingLicense} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline block mt-1">Lihat Semasa</a>}
-                      <Input id="edit-drivingLicense" type="file" accept="image/*,.pdf" onChange={(e) => { if (e.target.files?.[0]) setEditDocuments(prev => ({ ...prev, drivingLicense: e.target.files![0] })); }} className="mt-1 text-xs h-8" />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-passportPhoto" className="text-xs">{language === 'en' ? 'Passport Photo' : 'Gambar Pasport'}</Label>
-                      {currentDocUrls.passportPhoto && <a href={currentDocUrls.passportPhoto} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline block mt-1">Lihat Semasa</a>}
-                      <Input id="edit-passportPhoto" type="file" accept="image/*,.pdf" onChange={(e) => { if (e.target.files?.[0]) setEditDocuments(prev => ({ ...prev, passportPhoto: e.target.files![0] })); }} className="mt-1 text-xs h-8" />
-                    </div>
-                  </div>
+                <div>
+                  <Label htmlFor="edit-ic">{language === 'en' ? 'IC Number' : 'No. Kad Pengenalan'} *</Label>
+                  <Input
+                    id="edit-ic"
+                    value={editFormData.ic}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, ic: e.target.value }))}
+                  />
                 </div>
-              )}
+                <div>
+                  <Label htmlFor="edit-okuCard">{language === 'en' ? 'OKU Card No.' : 'No. Kad OKU'} *</Label>
+                  <Input
+                    id="edit-okuCard"
+                    value={editFormData.okuCard}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, okuCard: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-taxAccount">{language === 'en' ? 'Tax Account No.' : 'No. Akaun Cukai Taksiran'}</Label>
+                  <Input
+                    id="edit-taxAccount"
+                    value={editFormData.taxAccount}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, taxAccount: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-phone">{language === 'en' ? 'Phone' : 'No. Telefon'} *</Label>
+                  <Input
+                    id="edit-phone"
+                    value={editFormData.phone}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-carReg">{language === 'en' ? 'Car Registration' : 'No. Pendaftaran Kereta'} *</Label>
+                  <Input
+                    id="edit-carReg"
+                    value={editFormData.carReg}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, carReg: e.target.value }))}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="edit-okuCategory">{language === 'en' ? 'OKU Category' : 'Kategori OKU'} *</Label>
+                  <Input
+                    id="edit-okuCategory"
+                    value={editFormData.okuCategory}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, okuCategory: e.target.value }))}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="edit-street">{language === 'en' ? 'Street Address' : 'Alamat Jalan'} *</Label>
+                  <Input
+                    id="edit-street"
+                    value={editFormData.street}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, street: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Location Map */}
+            <div className="space-y-4">
+              <h4 className="font-semibold border-b pb-2">{language === 'en' ? 'Location on Map' : 'Lokasi Pada Peta'}</h4>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <Label>{language === 'en' ? 'Latitude' : 'Latitud'}</Label>
+                  <Input
+                    value={editLatitude?.toFixed(6) || ''}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+                <div>
+                  <Label>{language === 'en' ? 'Longitude' : 'Longitud'}</Label>
+                  <Input
+                    value={editLongitude?.toFixed(6) || ''}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+                <div>
+                  <Label>{language === 'en' ? 'Mukim' : 'Mukim'}</Label>
+                  <Input
+                    value={editMukim}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+                <div>
+                  <Label>{language === 'en' ? 'District' : 'Daerah'}</Label>
+                  <Input
+                    value={editDaerah}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+              </div>
+              <MapPicker
+                lat={editLatitude ?? undefined}
+                lon={editLongitude ?? undefined}
+                showInstructions={true}
+                height={350}
+                onLocationChange={(loc) => {
+                  setEditLatitude(loc.lat);
+                  setEditLongitude(loc.lon);
+                  if (loc.daerah) setEditDaerah(loc.daerah);
+                  if (loc.mukim) setEditMukim(loc.mukim);
+                }}
+              />
+            </div>
+
+            {/* Document Upload Section */}
+            <div className="space-y-4">
+              <h4 className="font-semibold border-b pb-2">{language === 'en' ? 'Documents' : 'Dokumen'}</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* IC Copy */}
+                <div>
+                  <Label htmlFor="edit-icCopy">{language === 'en' ? 'IC Copy' : 'Salinan Kad Pengenalan'}</Label>
+                  {currentDocUrls.icCopy && (
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.icCopy} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                  )}
+                  <Input
+                    id="edit-icCopy"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setEditDocuments(prev => ({ ...prev, icCopy: e.target.files![0] }));
+                      }
+                    }}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                  </p>
+                </div>
+
+                {/* OKU Card */}
+                <div>
+                  <Label htmlFor="edit-okuCardDoc">{language === 'en' ? 'OKU Card' : 'Kad OKU'}</Label>
+                  {currentDocUrls.okuCard && (
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.okuCard} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                  )}
+                  <Input
+                    id="edit-okuCardDoc"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setEditDocuments(prev => ({ ...prev, okuCard: e.target.files![0] }));
+                      }
+                    }}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                  </p>
+                </div>
+
+                {/* Driving License */}
+                <div>
+                  <Label htmlFor="edit-drivingLicense">{language === 'en' ? 'Driving License' : 'Lesen Memandu'}</Label>
+                  {currentDocUrls.drivingLicense && (
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.drivingLicense} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                  )}
+                  <Input
+                    id="edit-drivingLicense"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setEditDocuments(prev => ({ ...prev, drivingLicense: e.target.files![0] }));
+                      }
+                    }}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                  </p>
+                </div>
+
+                {/* Passport Photo */}
+                <div>
+                  <Label htmlFor="edit-passportPhoto">{language === 'en' ? 'Passport Photo' : 'Gambar Pasport'}</Label>
+                  {currentDocUrls.passportPhoto && (
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.passportPhoto} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                  )}
+                  <Input
+                    id="edit-passportPhoto"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setEditDocuments(prev => ({ ...prev, passportPhoto: e.target.files![0] }));
+                      }
+                    }}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                  </p>
+                </div>
+
+                {/* Tanggungan Signature (if applicable) */}
+                {currentDocUrls.tanggunganSignature && (
+                  <div className="md:col-span-2">
+                    <Label htmlFor="edit-tanggunganSignature">{language === 'en' ? 'Guardian Signature' : 'Tandatangan Tanggungan'}</Label>
+                    <div className="mt-2 mb-2">
+                      <a href={currentDocUrls.tanggunganSignature} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4" />
+                        {language === 'en' ? 'View Current' : 'Lihat Semasa'}
+                      </a>
+                    </div>
+                    <Input
+                      id="edit-tanggunganSignature"
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setEditDocuments(prev => ({ ...prev, tanggunganSignature: e.target.files![0] }));
+                        }
+                      }}
+                      className="mt-2"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {language === 'en' ? 'Leave empty to keep current document' : 'Biarkan kosong untuk kekalkan dokumen semasa'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Navigation Footer */}
-          <div className="border-t pt-3 pb-2 px-4 flex items-center justify-between bg-gray-50">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setEditStep(prev => Math.max(1, prev - 1) as 1 | 2 | 3)}
-              disabled={editStep === 1}
-              className="text-xs h-8"
-            >
-              <span className="mr-1">◀</span> Sebelumnya
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setShowEditModal(false)} disabled={isUpdating}>
+              <X className="w-4 h-4 mr-2" />
+              {language === 'en' ? 'Cancel' : 'Batal'}
             </Button>
-            
-            <div className="text-xs text-gray-600">
-              Step {editStep} of 3
-            </div>
-            
-            {editStep < 3 ? (
-              <Button 
-                size="sm"
-                onClick={() => setEditStep(prev => Math.min(3, prev + 1) as 1 | 2 | 3)}
-                className="text-xs h-8"
-              >
-                Seterusnya <span className="ml-1">▶</span>
-              </Button>
-            ) : (
-              <Button 
-                size="sm"
-                onClick={handleSaveEdit} 
-                disabled={isUpdating}
-                className="text-xs h-8"
-              >
-                {isUpdating ? (
-                  <>
-                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
-                    Menyimpan...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-3 h-3 mr-1" />
-                    Simpan Perubahan
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
+            <Button onClick={handleSaveEdit} disabled={isUpdating}>
+              {isUpdating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  {language === 'en' ? 'Saving...' : 'Menyimpan...'}
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  {language === 'en' ? 'Save Changes' : 'Simpan Perubahan'}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -2241,56 +2201,54 @@ export default function AdminPanel() {
 
       {/* Import CSV/Excel Modal */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-          <DialogHeader className="pb-2">
-            <DialogTitle className="text-lg">Import</DialogTitle>
-            <DialogDescription className="text-xs">
-              Muat naik fail untuk import permohonan secara pukal. Semua rekod dianggap permohonan baharu.
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {language === 'en' ? 'Import CSV/Excel File' : 'Import Fail CSV/Excel'}
+            </DialogTitle>
+            <DialogDescription>
+              {language === 'en' 
+                ? 'Upload a CSV or Excel file to bulk import applications. All records will be treated as new applications (Pendaftaran Baru).'
+                : 'Muat naik fail CSV atau Excel untuk import permohonan secara pukal. Semua rekod akan dianggap sebagai permohonan baharu (Pendaftaran Baru).'}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-2 overflow-y-auto flex-1 pr-2">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-2">
             <div>
-              <Label htmlFor="import-file" className="mb-1 block text-xs font-semibold">Pilih Fail</Label>
+              <Label htmlFor="import-file" className="mb-2 block">
+                {language === 'en' ? 'Select File' : 'Pilih Fail'}
+              </Label>
               <Input
                 id="import-file"
                 type="file"
                 accept=".csv,.xlsx,.xls"
                 onChange={(e) => setImportFile(e.target.files?.[0] || null)}
                 disabled={isImporting}
-                className="text-xs"
               />
-              <p className="text-[10px] text-muted-foreground mt-0.5">Format: CSV, XLSX, XLS</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {language === 'en' 
+                  ? 'Supported formats: CSV, XLSX, XLS'
+                  : 'Format yang disokong: CSV, XLSX, XLS'}
+              </p>
             </div>
 
             {importFile && (
-              <div className="p-2 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <p className="text-xs font-semibold text-green-800">{importFile.name}</p>
-                    <p className="text-[10px] text-green-600">{(importFile.size / 1024).toFixed(2)} KB</p>
-                  </div>
-                </div>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <span className="font-medium">{language === 'en' ? 'Selected file:' : 'Fail dipilih:'}</span> {importFile.name}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  {language === 'en' ? 'Size:' : 'Saiz:'} {(importFile.size / 1024).toFixed(2)} KB
+                </p>
               </div>
             )}
 
-            <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="p-2 bg-blue-500 rounded-lg">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-blue-900">{language === 'en' ? 'Column Format' : 'Format Lajur'}</p>
-                  <p className="text-xs text-blue-700">{language === 'en' ? 'Follow this exact order' : 'Ikut susunan tepat ini'}</p>
-                </div>
-              </div>
-              <div className="max-h-40 overflow-y-auto bg-white rounded-lg p-3 border border-blue-100">
-                <ol className="text-xs text-gray-700 space-y-1.5 ml-4 list-decimal">
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-xs text-yellow-800 mb-2">
+                <strong>{language === 'en' ? 'Required columns (in exact order):' : 'Lajur yang diperlukan (mengikut susunan tepat):'}</strong>
+              </p>
+              <div className="max-h-40 overflow-y-auto">
+                <ol className="text-xs text-yellow-700 space-y-1 ml-4 list-decimal">
                   <li>No. Siri</li>
                   <li>Jenis</li>
                   <li>No. IC</li>
@@ -2308,34 +2266,18 @@ export default function AdminPanel() {
                   <li>Sesi</li>
                 </ol>
               </div>
-              <div className="mt-1.5">
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="w-full text-[11px] h-7 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                  onClick={() => {
-                    // Create CSV template
-                    const headers = ['No. Siri', 'Jenis', 'No. IC', 'Nama', 'No. Kad OKU', 'No. Tel', 'No. Kereta', 'Kategori OKU', 'No. Akaun Cukai Taksiran', 'Alamat', 'Status', 'Tarikh Mohon', 'Tarikh Lulus', 'Tarikh Tamat Tempoh', 'Sesi'];
-                    const exampleRow = ['1', 'Baharu', '990101011234', 'Ahmad Bin Ali', 'OKU12345', '0123456789', 'ABC1234', 'Penglihatan', '1234567', 'No 123, Jalan Merdeka', 'Diluluskan', '2025-01-01', '2025-01-15', '2027-12-31', '2025'];
-                    const csvContent = [headers.join(','), exampleRow.join(',')].join('\n');
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = 'template_import_permohonan.csv';
-                    link.click();
-                    toast.success(language === 'en' ? 'Template downloaded!' : 'Templat berjaya dimuat turun!');
-                  }}
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  {language === 'en' ? 'Download Template' : 'Muat Turun Templat'}
-                </Button>
-              </div>
+              <p className="text-xs text-yellow-700 mt-3">
+                <strong>{language === 'en' ? 'Note:' : 'Nota:'}</strong> {language === 'en' 
+                  ? 'Download CSV from Dashboard to get the correct format template.'
+                  : 'Muat turun CSV dari Dashboard untuk mendapat templat format yang betul.'}
+              </p>
+              <p className="text-xs text-yellow-700 mt-2">
+                <strong>Kategori OKU yang sah:</strong> Penglihatan, Pendengaran, Fizikal, Pembelajaran, Mental, Pelbagai Kecacatan, Lain-lain
+              </p>
             </div>
           </div>
 
-          <DialogFooter className="gap-3 pt-2 border-t">
+          <DialogFooter className="gap-2">
             <Button 
               variant="outline" 
               onClick={() => {
@@ -2343,18 +2285,16 @@ export default function AdminPanel() {
                 setImportFile(null);
               }}
               disabled={isImporting}
-              className="flex-1"
             >
               {language === 'en' ? 'Cancel' : 'Batal'}
             </Button>
             <Button 
               onClick={handleBulkImport}
               disabled={isImporting || !importFile}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
             >
               {isImporting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  <span className="animate-spin mr-2">⏳</span>
                   {language === 'en' ? 'Importing...' : 'Mengimport...'}
                 </>
               ) : (

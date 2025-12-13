@@ -267,19 +267,6 @@ export default function SemakIC() {
                 )}
               </Button>
 
-              {/* Terms of Use Button */}
-              <Button 
-                onClick={() => {
-                  // TODO: Replace with actual Google Drive link
-                  window.open('YOUR_GOOGLE_DRIVE_LINK_HERE', '_blank');
-                }}
-                variant="outline"
-                className="w-full h-10 border-blue-500 text-blue-600 hover:bg-blue-50"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                {language === 'en' ? 'Terms of Use' : 'Syarat-Syarat Penggunaan'}
-              </Button>
-
               {/* Error Message */}
               {error && (
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -543,6 +530,19 @@ export default function SemakIC() {
                     Pendaftaran Baharu →
                   </Button>
                 )}
+
+                {/* Terms of Use Button - Moved to bottom */}
+                <Button 
+                  onClick={() => {
+                    // TODO: Replace with actual Google Drive link
+                    window.open('YOUR_GOOGLE_DRIVE_LINK_HERE', '_blank');
+                  }}
+                  variant="outline"
+                  className="w-full h-10 border-blue-500 text-blue-600 hover:bg-blue-50"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  {language === 'en' ? 'Terms of Use' : 'Syarat-Syarat Penggunaan'}
+                </Button>
               </div>
             </CardContent>
           </Card>
