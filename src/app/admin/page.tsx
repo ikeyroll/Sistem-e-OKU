@@ -595,7 +595,19 @@ export default function AdminPanel() {
       }
       
       if (results.failed > 0) {
-        toast.error(`${language === 'en' ? 'Failed to import' : 'Gagal diimport'}: ${results.failed} ${language === 'en' ? 'records' : 'rekod'}`);
+        // Show detailed error messages for each failed row
+        const errorMessages = results.errors.map((err: any) => 
+          `Baris ${err.row}: ${err.error}`
+        ).join('\n');
+        
+        toast.error(
+          `${language === 'en' ? 'Failed to import' : 'Gagal diimport'}: ${results.failed} ${language === 'en' ? 'records' : 'rekod'}\n\n${errorMessages}`,
+          { 
+            duration: Infinity,
+            closeButton: true,
+            dismissible: true
+          }
+        );
         console.error('❌ Import errors:', results.errors);
       }
       
