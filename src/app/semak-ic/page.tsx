@@ -531,18 +531,20 @@ export default function SemakIC() {
                   </Button>
                 )}
 
-                {/* Terms of Use Button - Moved to bottom */}
-                <Button 
-                  onClick={() => {
-                    // TODO: Replace with actual Google Drive link
-                    window.open('YOUR_GOOGLE_DRIVE_LINK_HERE', '_blank');
-                  }}
-                  variant="outline"
-                  className="w-full h-10 border-blue-500 text-blue-600 hover:bg-blue-50"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  {language === 'en' ? 'Terms of Use' : 'Syarat-Syarat Penggunaan'}
-                </Button>
+                {/* Terms of Use Button - Only show if NOT Dalam Proses or Tidak Lengkap */}
+                {(!result || (result.status !== 'Dalam Proses' && result.status !== 'Tidak Lengkap')) && (
+                  <Button 
+                    onClick={() => {
+                      // TODO: Replace with actual Google Drive link
+                      window.open('YOUR_GOOGLE_DRIVE_LINK_HERE', '_blank');
+                    }}
+                    variant="outline"
+                    className="w-full h-10 border-blue-500 text-blue-600 hover:bg-blue-50"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    {language === 'en' ? 'Terms of Use' : 'Syarat-Syarat Penggunaan'}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

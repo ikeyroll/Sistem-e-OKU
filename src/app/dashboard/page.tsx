@@ -592,7 +592,7 @@ export default function Dashboard() {
           </div>
 
           {/* Visibility Settings Panel */}
-          {showSettings && (
+          {isAdminBoss && showSettings && (
             <Card className="mb-8">
               <CardHeader>
                 <CardTitle className="text-lg">{language === 'en' ? 'Dashboard Sections' : 'Bahagian Dashboard'}</CardTitle>

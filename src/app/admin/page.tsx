@@ -1007,18 +1007,18 @@ export default function AdminPanel() {
               <h1 className="text-3xl font-bold mb-2">{isAdminBoss ? (language === 'en' ? 'Super Admin' : 'Super Admin') : t('admin.title')}</h1>
               <p className="text-muted-foreground">{t('admin.subtitle')}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {isAdminBoss && (
                 <>
-                  <Button onClick={() => router.push('/admin/manage-admins')} className="h-9 w-50">
+                  <Button onClick={() => router.push('/admin/manage-admins')} className="h-9 w-full sm:w-55">
                     {language === 'en' ? 'Manage Admins' : 'Urus Admin'}
                   </Button>
-                  <Button onClick={() => router.push('/admin/manage-footer')} className="h-9 w-50">
+                  <Button onClick={() => router.push('/admin/manage-footer')} className="h-9 w-full sm:w-55">
                     {language === 'en' ? 'Footer' : 'Footer'}
                   </Button>
                 </>
               )}
-              <Button variant="destructive" onClick={handleLogout} className="h-9 w-50">
+              <Button variant="destructive" onClick={handleLogout} className="h-9 w-full sm:w-55">
                 {t('admin.logout')}
               </Button>
             </div>
@@ -1582,34 +1582,28 @@ export default function AdminPanel() {
                     ? 'Download successful applications map data in KML format (same as dashboard interactive map)' 
                     : 'Muat turun data peta permohonan berjaya dalam format KML (sama seperti peta interaktif dashboard)'}
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-<div className="flex items-end gap-3">
-  <div>
-    <Label className="mb-1 block">
-      {language === 'en' ? 'Session' : 'Sesi'}
-    </Label>
-    <Select value={kmlSession} onValueChange={setKmlSession}>
-      <SelectTrigger className="h-9 w-55">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">
-          {language === 'en' ? 'All Sessions' : 'Semua Sesi'}
-        </SelectItem>
-        {getKMLSessions().map(session => (
-          <SelectItem key={session} value={session}>
-            Sesi {session}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </div>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <Label className="mb-1 block">{language === 'en' ? 'Session' : 'Sesi'}</Label>
+                    <Select value={kmlSession} onValueChange={setKmlSession}>
+                      <SelectTrigger className="h-9 w-full sm:w-55">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{language === 'en' ? 'All Sessions' : 'Semua Sesi'}</SelectItem>
+                        {getKMLSessions().map(session => (
+                          <SelectItem key={session} value={session}>
+                            Sesi {session}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-  <Button onClick={handleKMLDownload} className="h-9 w-55">
-    <Download className="h-4 w-4 mr-2" />
-    {language === 'en' ? 'Download KML' : 'Muat Turun KML'}
-  </Button>
-</div>
+                  <Button onClick={handleKMLDownload} className="h-9 w-full sm:w-55">
+                    <Download className="h-4 w-4 mr-2" />
+                    {language === 'en' ? 'Download KML' : 'Muat Turun KML'}
+                  </Button>
                 </div>
               </div>
             </CardContent>
