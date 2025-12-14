@@ -124,13 +124,13 @@ export default function Home() {
       <Header />
       <main className="min-h-screen">
         {/* Hero Section with IC Validation */}
-        <section className="relative bg-gradient-to-br from-primary/10 via-background to-background py-0">
+        <section className="relative bg-gradient-to-br from-primary/10 via-background to-background py-0 -mt-4">
           <div className="container mx-auto px-3 sm:px-4 lg:px-4">
             <div className="max-w-2xl mx-auto">
               <div className="text-center">
                 {/* Logo e-OKU */}
                 <div className="flex justify-center mb-0">
-                  <div className="relative w-96 h-96 sm:w-[28rem] sm:h-[28rem]">
+                  <div className="relative w-80 h-80 sm:w-96 sm:h-96">
                     <Image
                       src="/e-oku.png"
                       alt="Logo e-OKU"
@@ -142,25 +142,25 @@ export default function Home() {
                 </div>
                 
                 {/* Nama Penuh Majlis */}
-                <div className="-mt-4">
-                  <h2 className="text-xl sm:text-2xl font-bold text-primary mb-0">
+                <div className="-mt-8">
+                  <h2 className="text-lg sm:text-xl font-bold text-primary mb-0">
                     {t('hero.mphs')}
                   </h2>
                 </div>
                 
                 {/* Sistem Title */}
-                <div className="border-t border-b border-primary/20 py-1 mt-1">
-                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-1">
+                <div className="border-t border-b border-primary/20 py-0.5 mt-0.5">
+                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight mb-0.5">
                     {t('hero.systemTitle')}
                   </h1>
-                  <p className="text-xs sm:text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {t('hero.subtitle')}
                   </p>
                 </div>
               </div>
 
-              <Card className="shadow-lg">
-                <CardHeader className="text-center pb-2 pt-3">
+              <Card className="shadow-lg mt-2">
+                <CardHeader className="text-center pb-1 pt-2">
                   <CardTitle className="text-lg">{t('hero.enterIC')}</CardTitle>
                   <CardDescription className="text-xs">{t('hero.checkRegistration')}</CardDescription>
                 </CardHeader>
