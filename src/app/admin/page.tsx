@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload, Copy, AlertCircle, Users, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateNoSiri } from '@/lib/generateNoSiri';
@@ -57,6 +58,7 @@ export default function AdminPanel() {
   
   // Selection state
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   
   // Toggle row selection
   const toggleRowSelection = (appId: string) => {
@@ -81,27 +83,29 @@ export default function AdminPanel() {
   };
   
   // Handle bulk delete
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedRows.size === 0) {
       toast.error(language === 'en' ? 'Please select applications to delete' : 'Sila pilih permohonan untuk dipadam');
       return;
     }
-    
-    if (!confirm(`${language === 'en' ? 'Delete' : 'Padam'} ${selectedRows.size} ${language === 'en' ? 'applications?' : 'permohonan?'}`)) {
-      return;
-    }
-    
+    setShowBulkDeleteDialog(true);
+  };
+
+  const confirmBulkDelete = async () => {
     try {
+      const count = selectedRows.size;
       for (const id of selectedRows) {
         await deleteApplication(id);
       }
       
       setApplications(prev => prev.filter(app => !selectedRows.has(app.id)));
       setSelectedRows(new Set());
-      toast.success(`${selectedRows.size} ${language === 'en' ? 'applications deleted' : 'permohonan dipadam'}`);
+      toast.success(`${count} ${language === 'en' ? 'applications deleted' : 'permohonan dipadam'}`);
     } catch (error: any) {
       console.error('Error deleting applications:', error);
       toast.error(error.message || (language === 'en' ? 'Error deleting applications' : 'Ralat semasa memadam permohonan'));
+    } finally {
+      setShowBulkDeleteDialog(false);
     }
   };
   
@@ -1177,25 +1181,28 @@ export default function AdminPanel() {
                 <>
                   {/* Bulk Actions */}
                   {selectedRows.size > 0 && (
-                    <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
-                      <span className="text-sm font-medium">
-                        {selectedRows.size} {language === 'en' ? 'selected' : 'dipilih'}
-                      </span>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={handleBulkCopy}
-                          className="h-9 w-full"
-                        >
-                          <Copy className="w-4 h-4 mr-2" />
-                          {language === 'en' ? 'Copy' : 'Salin'}
-                        </Button>
-                        <Button
-                          onClick={handleBulkDelete}
-                          className="h-9 w-full"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          {language === 'en' ? 'Delete' : 'Padam'}
-                        </Button>
+                    <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <span className="text-sm font-medium">
+                          {selectedRows.size} {language === 'en' ? 'selected' : 'dipilih'}
+                        </span>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                          <Button
+                            onClick={handleBulkCopy}
+                            className="h-9 w-full sm:w-auto min-w-[120px]"
+                          >
+                            <Copy className="w-4 h-4 mr-2" />
+                            {language === 'en' ? 'Copy' : 'Salin'}
+                          </Button>
+                          <Button
+                            onClick={handleBulkDelete}
+                            variant="destructive"
+                            className="h-9 w-full sm:w-auto min-w-[120px]"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            {language === 'en' ? 'Delete' : 'Padam'}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2444,6 +2451,35 @@ export default function AdminPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              {language === 'en' ? 'Delete Applications' : 'Padam Permohonan'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              {language === 'en' 
+                ? `Are you sure you want to delete ${selectedRows.size} application${selectedRows.size > 1 ? 's' : ''}? This action cannot be undone.`
+                : `Adakah anda pasti untuk memadam ${selectedRows.size} permohonan? Tindakan ini tidak boleh dibatalkan.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {language === 'en' ? 'Cancel' : 'Batal'}
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmBulkDelete} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {language === 'en' ? 'Delete' : 'Padam'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Footer />
     </>

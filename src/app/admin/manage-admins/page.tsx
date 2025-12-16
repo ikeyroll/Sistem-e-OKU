@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { UserPlus, Edit, Trash2, UserCheck, UserX, Shield, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAllAdmins, createAdmin, updateAdmin, deleteAdmin, toggleAdminStatus, initializeDefaultAdmins, type AdminUser } from '@/lib/api/auth';
@@ -24,6 +25,8 @@ export default function ManageAdmins() {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<AdminUser | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [adminToDelete, setAdminToDelete] = useState<AdminUser | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -139,16 +142,16 @@ export default function ManageAdmins() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (admin: AdminUser) => {
-    const confirmMsg = language === 'en' 
-      ? `Are you sure you want to delete admin "${admin.full_name}"?`
-      : `Adakah anda pasti untuk memadam admin "${admin.full_name}"?`;
-    if (!confirm(confirmMsg)) {
-      return;
-    }
+  const handleDelete = (admin: AdminUser) => {
+    setAdminToDelete(admin);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!adminToDelete) return;
 
     try {
-      const result = await deleteAdmin(admin.id);
+      const result = await deleteAdmin(adminToDelete.id);
       
       if (result.success) {
         toast.success(language === 'en' ? 'Admin deleted successfully' : 'Admin berjaya dipadam');
@@ -159,6 +162,9 @@ export default function ManageAdmins() {
     } catch (error) {
       console.error('Error deleting admin:', error);
       toast.error(language === 'en' ? 'Error deleting admin' : 'Ralat semasa memadam admin');
+    } finally {
+      setDeleteDialogOpen(false);
+      setAdminToDelete(null);
     }
   };
 
@@ -347,107 +353,158 @@ export default function ManageAdmins() {
             <CardContent>
               {/* Mobile View - Cards */}
               <div className="block md:hidden space-y-4">
-                {admins.map((admin) => (
-                  <Card key={admin.id} className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-semibold text-lg">{admin.full_name}</p>
-                          <p className="text-sm text-muted-foreground">@{admin.username}</p>
+                {admins.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground">
+                      {language === 'en' ? 'No admins found' : 'Tiada admin dijumpai'}
+                    </p>
+                  </div>
+                ) : (
+                  admins.map((admin) => (
+                    <Card key={admin.id} className="overflow-hidden border-l-4 border-l-primary/30 hover:border-l-primary transition-colors">
+                      <div className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-lg truncate">{admin.full_name}</p>
+                            <p className="text-sm text-muted-foreground truncate">@{admin.username}</p>
+                          </div>
+                          <Badge variant={admin.role === 'admin_boss' ? 'default' : 'secondary'} className="shrink-0">
+                            {admin.role === 'admin_boss' ? 'Boss' : 'Admin'}
+                          </Badge>
                         </div>
-                        <Badge variant={admin.role === 'admin_boss' ? 'default' : 'secondary'}>
-                          {admin.role === 'admin_boss' ? 'Admin Boss' : 'Admin'}
-                        </Badge>
+                        
+                        <div className="space-y-2 text-sm bg-muted/30 rounded-lg p-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-muted-foreground min-w-[60px]">Email:</span>
+                            <span className="truncate">{admin.email || '-'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-muted-foreground min-w-[60px]">
+                              {language === 'en' ? 'Created:' : 'Dibuat:'}
+                            </span>
+                            <span>{new Date(admin.created_at).toLocaleDateString(language === 'en' ? 'en-GB' : 'ms-MY')}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEdit(admin)}
+                            className="flex-1 h-10"
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            {language === 'en' ? 'Edit' : 'Edit'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(admin)}
+                            className="flex-1 h-10"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {language === 'en' ? 'Delete' : 'Padam'}
+                          </Button>
+                        </div>
                       </div>
-                      
-                      <div className="space-y-1 text-sm">
-                        <p><span className="font-medium">Email:</span> {admin.email || '-'}</p>
-                        <p>
-                          <span className="font-medium">{language === 'en' ? 'Created:' : 'Dibuat:'}</span>{' '}
-                          {new Date(admin.created_at).toLocaleDateString(language === 'en' ? 'en-GB' : 'ms-MY')}
-                        </p>
-                      </div>
-                      
-                      <div className="flex gap-2 pt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEdit(admin)}
-                          className="flex-1"
-                        >
-                          <Edit className="h-4 w-4 mr-1" />
-                          {language === 'en' ? 'Edit' : 'Edit'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDelete(admin)}
-                          className="flex-1"
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          {language === 'en' ? 'Delete' : 'Padam'}
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  ))
+                )}
               </div>
 
               {/* Desktop View - Table */}
               <div className="hidden md:block overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Username</TableHead>
-                      <TableHead>{language === 'en' ? 'Full Name' : 'Nama Penuh'}</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>{language === 'en' ? 'Role' : 'Peranan'}</TableHead>
-                      <TableHead>{language === 'en' ? 'Created Date' : 'Tarikh Dibuat'}</TableHead>
-                      <TableHead className="text-right">{language === 'en' ? 'Actions' : 'Tindakan'}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {admins.map((admin) => (
-                      <TableRow key={admin.id}>
-                        <TableCell className="font-medium">{admin.username}</TableCell>
-                        <TableCell>{admin.full_name}</TableCell>
-                        <TableCell>{admin.email || '-'}</TableCell>
-                        <TableCell>
-                          <Badge variant={admin.role === 'admin_boss' ? 'default' : 'secondary'}>
-                            {admin.role === 'admin_boss' ? 'Admin Boss' : 'Admin'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{new Date(admin.created_at).toLocaleDateString(language === 'en' ? 'en-GB' : 'ms-MY')}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEdit(admin)}
-                              title={language === 'en' ? 'Edit' : 'Edit'}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDelete(admin)}
-                              title={language === 'en' ? 'Delete' : 'Padam'}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                {admins.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground">
+                      {language === 'en' ? 'No admins found' : 'Tiada admin dijumpai'}
+                    </p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Username</TableHead>
+                        <TableHead>{language === 'en' ? 'Full Name' : 'Nama Penuh'}</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>{language === 'en' ? 'Role' : 'Peranan'}</TableHead>
+                        <TableHead>{language === 'en' ? 'Created Date' : 'Tarikh Dibuat'}</TableHead>
+                        <TableHead className="text-right">{language === 'en' ? 'Actions' : 'Tindakan'}</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {admins.map((admin) => (
+                        <TableRow key={admin.id} className="hover:bg-muted/50 transition-colors">
+                          <TableCell className="font-medium font-mono text-sm">{admin.username}</TableCell>
+                          <TableCell className="font-medium">{admin.full_name}</TableCell>
+                          <TableCell className="text-muted-foreground">{admin.email || '-'}</TableCell>
+                          <TableCell>
+                            <Badge variant={admin.role === 'admin_boss' ? 'default' : 'secondary'}>
+                              {admin.role === 'admin_boss' ? 'Admin Boss' : 'Admin'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {new Date(admin.created_at).toLocaleDateString(language === 'en' ? 'en-GB' : 'ms-MY')}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEdit(admin)}
+                                title={language === 'en' ? 'Edit' : 'Edit'}
+                                className="hover:bg-primary hover:text-primary-foreground transition-colors"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDelete(admin)}
+                                title={language === 'en' ? 'Delete' : 'Padam'}
+                                className="hover:bg-destructive/90 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
       </main>
       <Footer />
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === 'en' ? 'Delete Admin' : 'Padam Admin'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === 'en' 
+                ? `Are you sure you want to delete admin "${adminToDelete?.full_name}"? This action cannot be undone.`
+                : `Adakah anda pasti untuk memadam admin "${adminToDelete?.full_name}"? Tindakan ini tidak boleh dibatalkan.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setAdminToDelete(null)}>
+              {language === 'en' ? 'Cancel' : 'Batal'}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {language === 'en' ? 'Delete' : 'Padam'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
