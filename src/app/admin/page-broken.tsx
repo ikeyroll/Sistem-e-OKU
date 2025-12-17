@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Download, Eye, CheckCircle, XCircle, Calendar, Package } from 'lucide-react';
+import { Search, Download, Eye, CheckCircle, XCircle, Calendar, Package, Copy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateNoSiri } from '@/lib/generateNoSiri';
 import { exportWithDateRange } from '@/lib/csvExport';
@@ -41,7 +41,15 @@ interface Application {
     phone: string;
     carReg: string;
     okuCategory: string;
-    address: string;
+    address: {
+      street: string;
+      mukim: string;
+      daerah: string;
+      poskod?: string;
+      negeri?: string;
+      full_address?: string;
+    };
+    taxAccount?: string;
   };
   tanggungan?: {
     name: string;
@@ -56,95 +64,17 @@ interface Application {
     passportPhoto: string;
     tanggunganSignature?: string;
   };
-  status: 'Dalam Proses' | 'Diluluskan' | 'Sedia Diambil' | 'Telah Diambil' | 'Tidak Lengkap';
+  status: 'Dalam Proses' | 'Diluluskan' | 'Sedia Diambil' | 'Telah Diambil' | 'Tidak Berjaya';
   submitted_date: string;
   approved_date?: string;
   ready_date?: string;
   collected_date?: string;
   admin_notes?: string;
+  created_at: string;
+  updated_at: string;
 }
 
-// Remove mock data - will load from Supabase
-const mockApplications: Application[] = [
-  // Removed - using Supabase now
-];
-  {
-    id: '1',
-    refNo: 'REF12345678',
-    applicationType: 'baru',
-    pemohon: {
-      name: 'Ahmad bin Ali',
-      ic: '850215-10-5432',
-      okuCard: 'OKU123456',
-      phone: '0123456789',
-      carReg: 'WXY1234',
-      okuCategory: 'Penglihatan',
-      address: 'No 123, Jalan Merdeka, 44000 KKB',
-    },
-    documents: {
-      icCopy: '/uploads/ic-ahmad.pdf',
-      okuCard: '/uploads/oku-ahmad.jpg',
-      drivingLicense: '/uploads/license-ahmad.pdf',
-      passportPhoto: '/uploads/photo-ahmad.jpg',
-    },
-    status: 'Dalam Proses',
-    submittedDate: new Date('2025-01-15'),
-  },
-  {
-    id: '2',
-    refNo: 'REN87654321',
-    noSiri: 'MPHS/2025/001',
-    applicationType: 'pembaharuan',
-    pemohon: {
-      name: 'Siti Nurhaliza',
-      ic: '920308-14-6789',
-      okuCard: 'OKU789012',
-      phone: '0198765432',
-      carReg: 'DEF5678',
-      okuCategory: 'Pendengaran',
-      address: 'No 45, Jalan Harmoni, 44100 Batang Kali',
-    },
-    tanggungan: {
-      name: 'Abdullah bin Hassan',
-      relation: 'Bapa',
-      ic: '650505-10-1111',
-      company: 'Persatuan OKU Selangor',
-    },
-    documents: {
-      icCopy: '/uploads/ic-siti.pdf',
-      okuCard: '/uploads/oku-siti.jpg',
-      drivingLicense: '/uploads/license-siti.pdf',
-      passportPhoto: '/uploads/photo-siti.jpg',
-      tanggunganSignature: '/uploads/signature-abdullah.jpg',
-    },
-    status: 'Diluluskan',
-    submittedDate: new Date('2025-01-10'),
-    approvedDate: new Date('2025-01-12'),
-  },
-  {
-    id: '3',
-    refNo: 'REF11223344',
-    applicationType: 'baru',
-    pemohon: {
-      name: 'Kumar a/l Raj',
-      ic: '880101-05-1234',
-      okuCard: 'OKU345678',
-      phone: '0167891234',
-      carReg: 'GHI9012',
-      okuCategory: 'Fizikal',
-      address: 'No 78, Taman Damai, 44000 KKB',
-    },
-    documents: {
-      icCopy: '/uploads/ic-kumar.pdf',
-      okuCard: '/uploads/oku-kumar-blur.jpg',
-      drivingLicense: '/uploads/license-kumar.pdf',
-      passportPhoto: '/uploads/photo-kumar.jpg',
-    },
-    status: 'Tidak Lengkap',
-    submittedDate: new Date('2025-01-08'),
-    adminNotes: 'Dokumen tidak lengkap. Salinan kad OKU tidak jelas dan perlu dikemukakan semula. Sila pastikan semua dokumen dalam keadaan baik dan boleh dibaca dengan jelas.',
-  },
-];
+const mockApplications: Application[] = [];
 
 export default function AdminPanel() {
   const { language } = useLanguage();
@@ -160,12 +90,26 @@ export default function AdminPanel() {
   const [rejectionNotes, setRejectionNotes] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+
+  // Toggle row selection
+  const toggleRowSelection = (appId: string) => {
+    setSelectedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(appId)) {
+        newSet.delete(appId);
+      } else {
+        newSet.add(appId);
+      }
+      return newSet;
+    });
+  };
 
   // Filter applications
   const filteredApps = applications.filter(app => {
     const matchesSearch = 
-      app.refNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.noSiri?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.ref_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.no_siri?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.pemohon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.pemohon.ic.includes(searchQuery);
     
@@ -173,6 +117,47 @@ export default function AdminPanel() {
     
     return matchesSearch && matchesStatus;
   });
+
+  // Select all rows
+  const toggleSelectAll = () => {
+    if (selectedRows.size === filteredApps.length) {
+      setSelectedRows(new Set());
+    } else {
+      setSelectedRows(new Set(filteredApps.map(app => app.id)));
+    }
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = () => {
+    if (selectedRows.size === 0) {
+      toast.error('Sila pilih permohonan untuk dipadam');
+      return;
+    }
+    
+    if (!confirm(`Padam ${selectedRows.size} permohonan?`)) {
+      return;
+    }
+    
+    setApplications(prev => prev.filter(app => !selectedRows.has(app.id)));
+    setSelectedRows(new Set());
+    toast.success(`${selectedRows.size} permohonan dipadam`);
+  };
+
+  // Handle bulk copy
+  const handleBulkCopy = () => {
+    if (selectedRows.size === 0) {
+      toast.error('Sila pilih permohonan untuk disalin');
+      return;
+    }
+    
+    const selectedApps = applications.filter(app => selectedRows.has(app.id));
+    const copyData = selectedApps.map(app => 
+      `No. Rujukan: ${app.ref_no}\nNo. Siri: ${app.no_siri || '-'}\nNama: ${app.pemohon.name}\nNo. IC: ${app.pemohon.ic}\nJenis: ${app.application_type === 'baru' ? 'Baharu' : 'Pembaharuan'}\nStatus: ${app.status}`
+    ).join('\n\n---\n\n');
+    
+    navigator.clipboard.writeText(copyData);
+    toast.success(`${selectedRows.size} permohonan disalin ke papan klip`);
+  };
 
   const handleApprove = async () => {
     if (!selectedApp) return;
@@ -185,7 +170,7 @@ export default function AdminPanel() {
       // Update application
       setApplications(prev => prev.map(app => 
         app.id === selectedApp.id
-          ? { ...app, status: 'Diluluskan' as const, noSiri, approvedDate: new Date() }
+          ? { ...app, status: 'Diluluskan' as const, no_siri: noSiri, approved_date: new Date().toISOString(), created_at: app.created_at || new Date().toISOString(), updated_at: new Date().toISOString() }
           : app
       ));
 
@@ -204,7 +189,7 @@ export default function AdminPanel() {
     }
 
     // Count words
-    const wordCount = rejectionNotes.trim().split(/\s+/).length;
+    const wordCount = rejectionNotes.trim().split(/\s+/).filter(w => w).length;
     if (wordCount > 80) {
       toast.error('Catatan melebihi 80 perkataan');
       return;
@@ -213,7 +198,7 @@ export default function AdminPanel() {
     // Update application
     setApplications(prev => prev.map(app => 
       app.id === selectedApp.id
-        ? { ...app, status: 'Tidak Lengkap' as const, adminNotes: rejectionNotes }
+        ? { ...app, status: 'Tidak Berjaya' as const, admin_notes: rejectionNotes, updated_at: new Date().toISOString() }
         : app
     ));
 
@@ -228,7 +213,7 @@ export default function AdminPanel() {
 
     setApplications(prev => prev.map(app => 
       app.id === selectedApp.id
-        ? { ...app, status: 'Sedia Diambil' as const, readyDate: new Date() }
+        ? { ...app, status: 'Sedia Diambil' as const, ready_date: new Date().toISOString(), updated_at: new Date().toISOString() }
         : app
     ));
 
@@ -242,7 +227,7 @@ export default function AdminPanel() {
 
     setApplications(prev => prev.map(app => 
       app.id === selectedApp.id
-        ? { ...app, status: 'Telah Diambil' as const, collectedDate: new Date() }
+        ? { ...app, status: 'Telah Diambil' as const, collected_date: new Date().toISOString(), updated_at: new Date().toISOString() }
         : app
     ));
 
@@ -257,7 +242,12 @@ export default function AdminPanel() {
       return;
     }
 
-    exportWithDateRange(applications, new Date(dateFrom), new Date(dateTo));
+    const filteredAppsForExport = applications.filter(app => {
+      const date = new Date(app.submitted_date);
+      return date >= new Date(dateFrom) && date <= new Date(dateTo);
+    });
+
+    exportWithDateRange(filteredAppsForExport, new Date(dateFrom), new Date(dateTo));
     toast.success('CSV berjaya dimuat turun');
   };
 
@@ -271,8 +261,8 @@ export default function AdminPanel() {
         return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Sedia Diambil</Badge>;
       case 'Telah Diambil':
         return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Telah Diambil</Badge>;
-      case 'Tidak Lengkap':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Tidak Lengkap</Badge>;
+      case 'Tidak Berjaya':
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Tidak Berjaya</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -328,7 +318,7 @@ export default function AdminPanel() {
                       <SelectItem value="Diluluskan">Diluluskan</SelectItem>
                       <SelectItem value="Sedia Diambil">Sedia Diambil</SelectItem>
                       <SelectItem value="Telah Diambil">Telah Diambil</SelectItem>
-                      <SelectItem value="Tidak Lengkap">Tidak Lengkap</SelectItem>
+                      <SelectItem value="Tidak Berjaya">Tidak Berjaya</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -376,10 +366,43 @@ export default function AdminPanel() {
               <CardTitle>Senarai Permohonan ({filteredApps.length})</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Bulk Actions */}
+              {selectedRows.size > 0 && (
+                <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium">
+                    {selectedRows.size} dipilih
+                  </span>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button
+                      onClick={handleBulkCopy}
+                      className="h-9"
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Salin
+                    </Button>
+                    <Button
+                      onClick={handleBulkDelete}
+                      className="h-9"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Padam
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[50px]">
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.size === filteredApps.length && filteredApps.length > 0}
+                          onChange={toggleSelectAll}
+                          className="cursor-pointer"
+                        />
+                      </TableHead>
                       <TableHead>No. Rujukan</TableHead>
                       <TableHead>No. Siri</TableHead>
                       <TableHead>Jenis</TableHead>
@@ -393,28 +416,36 @@ export default function AdminPanel() {
                   <TableBody>
                     {filteredApps.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                           Tiada permohonan dijumpai
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredApps.map((app) => (
                         <TableRow key={app.id}>
-                          <TableCell className="font-medium">{app.refNo}</TableCell>
                           <TableCell>
-                            {app.noSiri ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedRows.has(app.id)}
+                              onChange={() => toggleRowSelection(app.id)}
+                              className="cursor-pointer"
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{app.ref_no}</TableCell>
+                          <TableCell>
+                            {app.no_siri ? (
                               <span className="font-mono text-sm bg-green-50 text-green-700 px-2 py-1 rounded">
-                                {app.noSiri}
+                                {app.no_siri}
                               </span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
-                          <TableCell>{getTypeBadge(app.applicationType)}</TableCell>
+                          <TableCell>{getTypeBadge(app.application_type)}</TableCell>
                           <TableCell>{app.pemohon.name}</TableCell>
                           <TableCell className="font-mono text-sm">{app.pemohon.ic}</TableCell>
                           <TableCell>{getStatusBadge(app.status)}</TableCell>
-                          <TableCell>{new Date(app.submittedDate).toLocaleDateString('ms-MY')}</TableCell>
+                          <TableCell>{new Date(app.submitted_date).toLocaleDateString('ms-MY')}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               {/* View Button - Always Available */}
@@ -510,17 +541,17 @@ export default function AdminPanel() {
           <DialogHeader>
             <DialogTitle className="text-2xl">Butiran Permohonan Lengkap</DialogTitle>
             <DialogDescription className="flex items-center gap-4">
-              <span>No. Rujukan: <span className="font-mono font-semibold">{selectedApp?.refNo}</span></span>
+              <span>No. Rujukan: <span className="font-mono font-semibold">{selectedApp?.ref_no}</span></span>
               {selectedApp && getStatusBadge(selectedApp.status)}
             </DialogDescription>
           </DialogHeader>
           {selectedApp && (
             <div className="space-y-6">
               {/* No Siri */}
-              {selectedApp.noSiri && (
+              {selectedApp.no_siri && (
                 <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
                   <p className="text-sm font-medium text-green-800 mb-1">No. Siri Pelekat</p>
-                  <p className="text-2xl font-bold text-green-900 font-mono">{selectedApp.noSiri}</p>
+                  <p className="text-2xl font-bold text-green-900 font-mono">{selectedApp.no_siri}</p>
                 </div>
               )}
               
@@ -557,7 +588,7 @@ export default function AdminPanel() {
                     </div>
                     <div className="col-span-2">
                       <p className="text-xs text-muted-foreground mb-1">Alamat</p>
-                      <p className="font-semibold">{selectedApp.pemohon.address}</p>
+                      <p className="font-semibold">{selectedApp.pemohon.address.full_address || `${selectedApp.pemohon.address.street}, ${selectedApp.pemohon.address.mukim}, ${selectedApp.pemohon.address.daerah}`}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -677,13 +708,13 @@ export default function AdminPanel() {
               </Card>
 
               {/* Admin Notes */}
-              {selectedApp.adminNotes && (
+              {selectedApp.admin_notes && (
                 <div className="p-4 bg-red-50 border-l-4 border-l-red-500 rounded-lg">
                   <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
                     <XCircle className="w-5 h-5" />
                     Catatan Admin
                   </h4>
-                  <p className="text-sm text-red-700">{selectedApp.adminNotes}</p>
+                  <p className="text-sm text-red-700">{selectedApp.admin_notes}</p>
                 </div>
               )}
 
@@ -699,7 +730,7 @@ export default function AdminPanel() {
                       <div>
                         <p className="font-medium">Permohonan Diterima</p>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(selectedApp.submittedDate).toLocaleDateString('ms-MY', { 
+                          {new Date(selectedApp.submitted_date).toLocaleDateString('ms-MY', { 
                             day: 'numeric', 
                             month: 'long', 
                             year: 'numeric' 
@@ -707,13 +738,13 @@ export default function AdminPanel() {
                         </p>
                       </div>
                     </div>
-                    {selectedApp.approvedDate && (
+                    {selectedApp.approved_date && (
                       <div className="flex items-start gap-3">
                         <div className="w-2 h-2 rounded-full bg-green-500 mt-2"></div>
                         <div>
                           <p className="font-medium">Diluluskan</p>
                           <p className="text-sm text-muted-foreground">
-                            {new Date(selectedApp.approvedDate).toLocaleDateString('ms-MY', { 
+                            {new Date(selectedApp.approved_date).toLocaleDateString('ms-MY', { 
                               day: 'numeric', 
                               month: 'long', 
                               year: 'numeric' 
@@ -742,7 +773,7 @@ export default function AdminPanel() {
           {selectedApp && (
             <div className="space-y-4">
               <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-                <p className="text-sm text-blue-700">No. Rujukan: <span className="font-semibold">{selectedApp.refNo}</span></p>
+                <p className="text-sm text-blue-700">No. Rujukan: <span className="font-semibold">{selectedApp.ref_no}</span></p>
                 <p className="text-sm text-blue-700">Nama: <span className="font-semibold">{selectedApp.pemohon.name}</span></p>
                 <p className="text-sm text-blue-700 mt-2">No. Siri akan dijana secara automatik</p>
               </div>
@@ -770,7 +801,7 @@ export default function AdminPanel() {
           {selectedApp && (
             <div className="space-y-4">
               <div className="p-4 bg-red-50 border border-red-200 rounded">
-                <p className="text-sm text-red-700">No. Rujukan: <span className="font-semibold">{selectedApp.refNo}</span></p>
+                <p className="text-sm text-red-700">No. Rujukan: <span className="font-semibold">{selectedApp.ref_no}</span></p>
                 <p className="text-sm text-red-700">Nama: <span className="font-semibold">{selectedApp.pemohon.name}</span></p>
               </div>
               
@@ -819,10 +850,10 @@ export default function AdminPanel() {
           {selectedApp && (
             <div className="space-y-4">
               <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-                <p className="text-sm text-blue-700">No. Rujukan: <span className="font-semibold">{selectedApp.refNo}</span></p>
+                <p className="text-sm text-blue-700">No. Rujukan: <span className="font-semibold">{selectedApp.ref_no}</span></p>
                 <p className="text-sm text-blue-700">Nama: <span className="font-semibold">{selectedApp.pemohon.name}</span></p>
-                {selectedApp.noSiri && (
-                  <p className="text-sm text-blue-700 mt-2">No. Siri: <span className="font-mono font-semibold">{selectedApp.noSiri}</span></p>
+                {selectedApp.no_siri && (
+                  <p className="text-sm text-blue-700 mt-2">No. Siri: <span className="font-mono font-semibold">{selectedApp.no_siri}</span></p>
                 )}
               </div>
             </div>
@@ -849,10 +880,10 @@ export default function AdminPanel() {
           {selectedApp && (
             <div className="space-y-4">
               <div className="p-4 bg-purple-50 border border-purple-200 rounded">
-                <p className="text-sm text-purple-700">No. Rujukan: <span className="font-semibold">{selectedApp.refNo}</span></p>
+                <p className="text-sm text-purple-700">No. Rujukan: <span className="font-semibold">{selectedApp.ref_no}</span></p>
                 <p className="text-sm text-purple-700">Nama: <span className="font-semibold">{selectedApp.pemohon.name}</span></p>
-                {selectedApp.noSiri && (
-                  <p className="text-sm text-purple-700 mt-2">No. Siri: <span className="font-mono font-semibold">{selectedApp.noSiri}</span></p>
+                {selectedApp.no_siri && (
+                  <p className="text-sm text-purple-700 mt-2">No. Siri: <span className="font-mono font-semibold">{selectedApp.no_siri}</span></p>
                 )}
               </div>
               <div className="p-3 bg-yellow-50 border-l-4 border-l-yellow-500 rounded">

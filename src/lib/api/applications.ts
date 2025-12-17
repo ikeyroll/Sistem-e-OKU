@@ -581,22 +581,22 @@ export async function uploadFile(file: File, path: string) {
 export async function generateRefNumber(type: 'baru' | 'pembaharuan'): Promise<string> {
   const prefix = 'OKU';
   
-  // Get last ref number with OKU prefix
+  // Get all ref numbers with OKU prefix to find the highest numeric value
   const { data, error } = await supabase
     .from('applications')
     .select('ref_no')
-    .like('ref_no', `${prefix}%`)
-    .order('ref_no', { ascending: false })
-    .limit(1);
+    .like('ref_no', `${prefix}%`);
   
   if (error) throw error;
   
   let sequence = 1;
   if (data && data.length > 0) {
-    const lastRefNo = data[0].ref_no;
-    // Extract the numeric part (e.g., OKU0000001 -> 0000001)
-    const lastSequence = parseInt(lastRefNo.replace('OKU', ''));
-    sequence = lastSequence + 1;
+    // Find the maximum numeric sequence
+    const maxSequence = data.reduce((max, item) => {
+      const numPart = parseInt(item.ref_no.replace('OKU', ''));
+      return numPart > max ? numPart : max;
+    }, 0);
+    sequence = maxSequence + 1;
   }
   
   // Format: OKU0000001 (7 digits)

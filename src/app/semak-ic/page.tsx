@@ -535,8 +535,7 @@ export default function SemakIC() {
                 {(!result || (result.status !== 'Dalam Proses' && result.status !== 'Tidak Lengkap')) && (
                   <Button 
                     onClick={() => {
-                      // TODO: Replace with actual Google Drive link
-                      window.open('YOUR_GOOGLE_DRIVE_LINK_HERE', '_blank');
+                      window.open('https://drive.google.com/file/d/1zV7CpacYT_2BPoHcnElrJffMhxFwBlrF/view?usp=sharing', '_blank');
                     }}
                     variant="outline"
                     className="w-full h-10 border-blue-500 text-blue-600 hover:bg-blue-50"

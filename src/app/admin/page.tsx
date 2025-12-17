@@ -955,6 +955,10 @@ export default function AdminPanel() {
       const updated = await updateApplication(selectedApp.id, updates);
       
       // Update local state
+      if (!updated) {
+        throw new Error('No updates were applied');
+      }
+      
       setApplications(prev => prev.map(app => 
         app.id === selectedApp.id ? updated : app
       ));
@@ -1061,8 +1065,8 @@ export default function AdminPanel() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">{language === 'en' ? 'All' : 'Semua'}</SelectItem>
-                        <SelectItem value="Baharu">{language === 'en' ? 'New' : 'Baharu'}</SelectItem>
-                        <SelectItem value="Pembaharuan">{language === 'en' ? 'Renewal' : 'Pembaharuan'}</SelectItem>
+                        <SelectItem value="baru">{language === 'en' ? 'New' : 'Baharu'}</SelectItem>
+                        <SelectItem value="pembaharuan">{language === 'en' ? 'Renewal' : 'Pembaharuan'}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -2410,7 +2414,7 @@ export default function AdminPanel() {
                 onClick={() => {
                   // Download template CSV
                   const link = document.createElement('a');
-                  link.href = '/template.csv';
+                  link.href = '/template-import-oku.csv';
                   link.download = 'template-import-oku.csv';
                   link.click();
                 }}
