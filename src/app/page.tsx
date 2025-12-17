@@ -252,17 +252,17 @@ export default function Home() {
         </section>
 
         {/* Info Section - Keperluan Dokumen */}
-        <section className="py-16 sm:py-24 bg-muted/50">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="max-w-3xl mx-auto">
+        <section className="py-4 sm:py-6 bg-muted/50">
+          <div className="container mx-auto px-3 sm:px-4 lg:px-4">
+            <div className="max-w-2xl mx-auto">
               <Card>
-                <CardHeader>
+                <CardHeader className="pb-2 pt-4">
                   <CardTitle className="text-2xl">
                     {language === 'en' ? 'Document Requirements' : 'Keperluan Dokumen'}
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <ul className="space-y-3">
+                <CardContent className="pt-0 pb-4">
+                  <ul className="space-y-2">
                     <li className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-primary mr-3 mt-0.5 flex-shrink-0" />
                       <span>
@@ -311,12 +311,12 @@ export default function Home() {
         </section>
 
         {/* Process Steps Section */}
-        <section className="py-16 sm:py-24">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t('process.title')}</h2>
+        <section className="py-6 sm:py-8">
+          <div className="container mx-auto px-3 sm:px-4 lg:px-4">
+            <div className="text-center mb-4">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-2">{t('process.title')}</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {processSteps.map((step, index) => (
                 <Card key={index} className="relative">
                   <CardHeader>
