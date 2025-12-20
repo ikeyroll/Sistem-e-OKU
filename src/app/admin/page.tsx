@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload, Copy, AlertCircle, Users, LogOut } from 'lucide-react';
+import { Search, Download, Eye, CheckCircle, XCircle, Calendar, FileText, Image as ImageIcon, Map, Edit, Save, X, Trash2, Upload, Copy, AlertCircle, Users, LogOut, Undo } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateNoSiri } from '@/lib/generateNoSiri';
 import { exportBySession } from '@/lib/csvExport';
@@ -24,6 +24,7 @@ import { updateOkuCategoryFromSessionToLainLain } from '@/lib/api/updateOkuCateg
 import MapPicker from '@/components/MapPicker';
 import { getIssuedCount, getSessionCapacity, setSessionCapacity, getSessionPrefix, setSessionConfig } from '@/lib/api/session';
 import type { Application } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { formatIC } from '@/lib/formatters';
 
 // No mock data - using Supabase only
@@ -118,7 +119,7 @@ export default function AdminPanel() {
     
     const selectedApps = applications.filter(app => selectedRows.has(app.id));
     const copyData = selectedApps.map(app => 
-      `No. Id: ${app.ref_no}\nNo. Siri: ${app.no_siri || '-'}\nNama: ${app.pemohon.name}\nNo. IC: ${formatIC(app.pemohon.ic)}\nJenis: ${app.application_type === 'baru' ? 'Baharu' : 'Pembaharuan'}\nStatus: ${app.status}`
+      `No. Id: ${generateNoId(app)}\nNo. Siri: ${app.no_siri || '-'}\nNama: ${app.pemohon.name}\nNo. IC: ${formatIC(app.pemohon.ic)}\nJenis: ${app.application_type === 'baru' ? 'Baharu' : 'Pembaharuan'}\nStatus: ${app.status}`
     ).join('\n\n---\n\n');
     
     navigator.clipboard.writeText(copyData);
@@ -266,6 +267,66 @@ export default function AdminPanel() {
     localStorage.removeItem('adminUser');
     document.cookie = 'adminLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     router.push('/admin/login');
+  };
+
+  // Generate No. Id dynamically based on submitted_date order (latest = highest number)
+  const generateNoId = (app: Application): string => {
+    // Sort all applications by submitted_date (descending - latest first)
+    const sortedApps = [...applications].sort((a, b) => 
+      new Date(b.submitted_date).getTime() - new Date(a.submitted_date).getTime()
+    );
+    
+    // Find the index of current application
+    const index = sortedApps.findIndex(a => a.id === app.id);
+    
+    // Generate OKU ID with 7 digits - latest gets highest number
+    return `OKU${(sortedApps.length - index).toString().padStart(7, '0')}`;
+  };
+
+  // Reverse status to previous state
+  const handleReverseStatus = async (app: Application) => {
+    try {
+      let newStatus: Application['status'];
+      let updateData: any = {};
+      
+      // Determine previous status based on current status
+      if (app.status === 'Telah Diambil') {
+        newStatus = 'Sedia Diambil';
+        updateData = { status: newStatus, collected_date: null };
+      } else if (app.status === 'Sedia Diambil') {
+        newStatus = 'Diluluskan';
+        updateData = { status: newStatus, ready_date: null };
+      } else if (app.status === 'Diluluskan') {
+        newStatus = 'Dalam Proses';
+        updateData = { status: newStatus, approved_date: null, expiry_date: null, no_siri: null };
+      } else if (app.status === 'Tidak Berjaya') {
+        newStatus = 'Dalam Proses';
+        updateData = { status: newStatus, admin_notes: null };
+      } else {
+        toast.error('Tidak boleh undur status ini');
+        return;
+      }
+
+      // Update in database
+      const { data, error } = await supabase
+        .from('applications')
+        .update(updateData)
+        .eq('id', app.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      // Update local state
+      setApplications(prev => prev.map(a => 
+        a.id === app.id ? data as Application : a
+      ));
+      
+      toast.success(`Status diundur ke: ${newStatus}`);
+    } catch (error: any) {
+      console.error('Error reversing status:', error);
+      toast.error(error.message || 'Ralat semasa mengundur status');
+    }
   };
 
   // Get unique mukims from dummy data
@@ -670,7 +731,7 @@ export default function AdminPanel() {
   // Filter applications
   const filteredApps = applications.filter((app) => {
     const matchesSearch =
-      app.ref_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (app.ref_no?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
       (app.no_siri?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
       app.pemohon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.pemohon.ic.includes(searchQuery);
@@ -902,26 +963,26 @@ export default function AdminPanel() {
         tanggunganSignature: currentDocUrls.tanggunganSignature,
       };
 
-      // Upload new documents if they were changed
+      // Upload new documents if they were changed (use app.id for path since ref_no is optional)
       if (editDocuments.icCopy) {
         toast.info(language === 'en' ? 'Uploading IC copy...' : 'Memuat naik salinan IC...');
-        uploadedDocs.icCopy = await uploadFile(editDocuments.icCopy, `${selectedApp.ref_no}/ic-copy`);
+        uploadedDocs.icCopy = await uploadFile(editDocuments.icCopy, `${selectedApp.id}/ic-copy`);
       }
       if (editDocuments.okuCard) {
         toast.info(language === 'en' ? 'Uploading OKU card...' : 'Memuat naik kad OKU...');
-        uploadedDocs.okuCard = await uploadFile(editDocuments.okuCard, `${selectedApp.ref_no}/oku-card`);
+        uploadedDocs.okuCard = await uploadFile(editDocuments.okuCard, `${selectedApp.id}/oku-card`);
       }
       if (editDocuments.drivingLicense) {
         toast.info(language === 'en' ? 'Uploading driving license...' : 'Memuat naik lesen memandu...');
-        uploadedDocs.drivingLicense = await uploadFile(editDocuments.drivingLicense, `${selectedApp.ref_no}/license`);
+        uploadedDocs.drivingLicense = await uploadFile(editDocuments.drivingLicense, `${selectedApp.id}/license`);
       }
       if (editDocuments.passportPhoto) {
         toast.info(language === 'en' ? 'Uploading passport photo...' : 'Memuat naik gambar pasport...');
-        uploadedDocs.passportPhoto = await uploadFile(editDocuments.passportPhoto, `${selectedApp.ref_no}/photo`);
+        uploadedDocs.passportPhoto = await uploadFile(editDocuments.passportPhoto, `${selectedApp.id}/photo`);
       }
       if (editDocuments.tanggunganSignature) {
         toast.info(language === 'en' ? 'Uploading guardian signature...' : 'Memuat naik tandatangan tanggungan...');
-        uploadedDocs.tanggunganSignature = await uploadFile(editDocuments.tanggunganSignature, `${selectedApp.ref_no}/tanggungan-signature`);
+        uploadedDocs.tanggunganSignature = await uploadFile(editDocuments.tanggunganSignature, `${selectedApp.id}/tanggungan-signature`);
       }
       
       const updatedPemohon = {
@@ -1262,7 +1323,7 @@ export default function AdminPanel() {
                               className="w-4 h-4 rounded border-primary text-primary focus:ring-primary cursor-pointer"
                             />
                           </TableCell>
-                          <TableCell className="font-medium whitespace-nowrap font-mono">{app.ref_no}</TableCell>
+                          <TableCell className="font-medium whitespace-nowrap font-mono">{generateNoId(app)}</TableCell>
                           <TableCell className="whitespace-nowrap">
                             {app.no_siri ? (
                               <span className="font-mono text-sm bg-green-50 text-green-700 px-2 py-1 rounded">
@@ -1312,23 +1373,67 @@ export default function AdminPanel() {
                                 </>
                               )}
                               {app.status === 'Diluluskan' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-blue-600 hover:text-blue-700"
-                                  onClick={() => handleMarkReady(app.id)}
-                                >
-                                  <CheckCircle className="w-4 h-4" />
-                                </Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-blue-600 hover:text-blue-700"
+                                    onClick={() => handleMarkReady(app.id)}
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-orange-600 hover:text-orange-700"
+                                    onClick={() => handleReverseStatus(app)}
+                                    title="Undur status"
+                                  >
+                                    <Undo className="w-4 h-4" />
+                                  </Button>
+                                </>
                               )}
                               {app.status === 'Sedia Diambil' && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-purple-600 hover:text-purple-700"
+                                    onClick={() => handleMarkCollected(app.id)}
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-orange-600 hover:text-orange-700"
+                                    onClick={() => handleReverseStatus(app)}
+                                    title="Undur status"
+                                  >
+                                    <Undo className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              )}
+                              {app.status === 'Telah Diambil' && (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="text-purple-600 hover:text-purple-700"
-                                  onClick={() => handleMarkCollected(app.id)}
+                                  className="text-orange-600 hover:text-orange-700"
+                                  onClick={() => handleReverseStatus(app)}
+                                  title="Undur status"
                                 >
-                                  <CheckCircle className="w-4 h-4" />
+                                  <Undo className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {app.status === 'Tidak Berjaya' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-orange-600 hover:text-orange-700"
+                                  onClick={() => handleReverseStatus(app)}
+                                  title="Undur status"
+                                >
+                                  <Undo className="w-4 h-4" />
                                 </Button>
                               )}
                             </div>
@@ -1625,11 +1730,11 @@ export default function AdminPanel() {
 
       {/* Detail Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-[90vw] w-[90vw] h-[95vh] overflow-hidden flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[98vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b">
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle>Butiran Permohonan</DialogTitle>
+                <DialogTitle className="text-xl">Butiran Permohonan</DialogTitle>
               </div>
               {selectedApp && (
                 <div className="flex gap-2">
@@ -1659,7 +1764,7 @@ export default function AdminPanel() {
             </div>
           </DialogHeader>
           {selectedApp && (
-            <div className="space-y-3 overflow-y-auto flex-1 pr-2">
+            <div className="space-y-3 overflow-y-auto flex-1 px-6 py-4">
               {/* ROW 1: Maklumat Pemohon */}
               <div className="p-4 bg-white border-2 border-blue-200 rounded-lg shadow-sm">
                 <h3 className="text-base font-semibold text-blue-900 mb-3 pb-2 border-b border-blue-300 flex items-center gap-2">
@@ -1859,7 +1964,7 @@ export default function AdminPanel() {
           {selectedApp && (
             <div className="space-y-4">
               <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-                <p className="text-sm text-blue-700">No. Id: <span className="font-semibold">{selectedApp.ref_no}</span></p>
+                <p className="text-sm text-blue-700">No. Id: <span className="font-semibold">{generateNoId(selectedApp)}</span></p>
                 <p className="text-sm text-blue-700">Nama: <span className="font-semibold">{selectedApp.pemohon.name}</span></p>
                 <p className="text-sm text-blue-700 mt-2">No. Siri: <span className="font-mono font-semibold">{selectedApp.no_siri || 'Akan dijana'}</span></p>
               </div>
@@ -1887,7 +1992,7 @@ export default function AdminPanel() {
           {selectedApp && (
             <div className="space-y-4">
               <div className="p-4 bg-red-50 border border-red-200 rounded">
-                <p className="text-sm text-red-700">No. Id: <span className="font-semibold">{selectedApp.ref_no}</span></p>
+                <p className="text-sm text-red-700">No. Id: <span className="font-semibold">{generateNoId(selectedApp)}</span></p>
                 <p className="text-sm text-red-700">Nama: <span className="font-semibold">{selectedApp.pemohon.name}</span></p>
               </div>
               
@@ -2290,7 +2395,7 @@ export default function AdminPanel() {
           {selectedApp && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-700">
-                <span className="font-medium">{language === 'en' ? 'ID No:' : 'No. Id:'}</span> {selectedApp.ref_no}
+                <span className="font-medium">{language === 'en' ? 'ID No:' : 'No. Id:'}</span> {generateNoId(selectedApp)}
               </p>
               <p className="text-sm text-red-700">
                 <span className="font-medium">{language === 'en' ? 'Name:' : 'Nama:'}</span> {selectedApp.pemohon.name}

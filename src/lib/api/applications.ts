@@ -13,7 +13,7 @@ export async function getApplications() {
   return data as Application[];
 }
 
-// Get application by ref number
+// Get application by ref number (deprecated - ref_no is now optional)
 export async function getApplicationByRefNo(refNo: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -108,12 +108,12 @@ export async function getApplicationByIC(ic: string) {
   return found as Application;
 }
 
-// Search applications
+// Search applications (ref_no is now optional)
 export async function searchApplications(query: string) {
   const { data, error } = await supabase
     .from('applications')
     .select('*')
-    .or(`ref_no.ilike.%${query}%,no_siri.ilike.%${query}%,pemohon->>name.ilike.%${query}%,pemohon->>ic.ilike.%${query}%`)
+    .or(`no_siri.ilike.%${query}%,pemohon->>name.ilike.%${query}%,pemohon->>ic.ilike.%${query}%`)
     .order('submitted_date', { ascending: false });
   
   if (error) throw error;
@@ -309,12 +309,8 @@ export async function createRenewalApplication(
       ...updatedData.documents
     };
     
-    // Generate new ref number
-    const refNo = await generateRefNumber('pembaharuan');
-    
-    // Create new application
+    // Create new application (ref_no is now optional and generated dynamically for display)
     const newApp = {
-      ref_no: refNo,
       application_type: 'pembaharuan',
       pemohon: updatedData.pemohon || existingPemohon,
       tanggungan: updatedData.tanggungan || existing.tanggungan,
@@ -577,7 +573,8 @@ export async function uploadFile(file: File, path: string) {
   }
 }
 
-// Generate unique reference number
+// Generate unique reference number (DEPRECATED - ref_no is now generated dynamically for display only)
+// This function is kept for backward compatibility but should not be used for new applications
 export async function generateRefNumber(type: 'baru' | 'pembaharuan'): Promise<string> {
   const prefix = 'OKU';
   
@@ -593,6 +590,7 @@ export async function generateRefNumber(type: 'baru' | 'pembaharuan'): Promise<s
   if (data && data.length > 0) {
     // Find the maximum numeric sequence
     const maxSequence = data.reduce((max, item) => {
+      if (!item.ref_no) return max;
       const numPart = parseInt(item.ref_no.replace('OKU', ''));
       return numPart > max ? numPart : max;
     }, 0);
@@ -658,8 +656,7 @@ export async function bulkImportApplications(records: any[]) {
     const batchPromises = batch.map(async (record, batchIndex) => {
       const i = batchStart + batchIndex;
       try {
-        // Generate reference number without querying DB each time
-        const refNo = `OKU${(currentSequence + i).toString().padStart(7, '0')}`;
+        // ref_no is now optional and generated dynamically for display only
         // Helper function to get value case-insensitively
         const getValueCaseInsensitive = (obj: any, key: string): any => {
           const keys = Object.keys(obj);
@@ -669,7 +666,7 @@ export async function bulkImportApplications(records: any[]) {
         
         // Extract name for logging
         const nameValue = getValueCaseInsensitive(record, 'Nama');
-        console.log(`  📝 Row ${i + 1}: Processing ${nameValue || 'Unknown'} -> ${refNo}`);
+        console.log(`  📝 Row ${i + 1}: Processing ${nameValue || 'Unknown'}`);
         
         // Parse dates - handle Excel date formats and missing dates
         let tarikhMohon = new Date();
@@ -773,9 +770,8 @@ export async function bulkImportApplications(records: any[]) {
           longitude = 101.6500;
         }
         
-        // Create application object with coordinates
+        // Create application object with coordinates (ref_no is optional)
         const application: Partial<Application> = {
-          ref_no: refNo,
           no_siri: noSiri || undefined,
           application_type: 'baru',
           latitude: latitude,

@@ -66,7 +66,7 @@ export default function SemakIC() {
       
       const resultData = {
         found: true,
-        refNo: app.ref_no,
+        refNo: app.ref_no || app.id, // Use app.id as fallback since ref_no is optional
         noSiri: app.no_siri,
         name: pemohon.name,
         ic: pemohon.ic,
@@ -531,8 +531,8 @@ export default function SemakIC() {
                   </Button>
                 )}
 
-                {/* Terms of Use Button - Only show if NOT Dalam Proses or Tidak Lengkap */}
-                {(!result || (result.status !== 'Dalam Proses' && result.status !== 'Tidak Lengkap')) && (
+                {/* Terms of Use Button - Show for all statuses except Tidak Lengkap */}
+                {(!result || result.status !== 'Tidak Lengkap') && (
                   <Button 
                     onClick={() => {
                       window.open('https://drive.google.com/file/d/1zV7CpacYT_2BPoHcnElrJffMhxFwBlrF/view?usp=sharing', '_blank');

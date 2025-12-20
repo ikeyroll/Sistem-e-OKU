@@ -539,14 +539,13 @@ export default function PembaharuanPermohonan() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="pemohonTaxAccount">No Akaun Cukai Taksiran *</Label>
+                    <Label htmlFor="pemohonTaxAccount">No Akaun Cukai Taksiran</Label>
                     <Input
                       id="pemohonTaxAccount"
                       name="pemohonTaxAccount"
                       value={formData.pemohonTaxAccount}
                       onChange={handleInputChange}
                       placeholder="Contoh: T00947903"
-                      required
                       disabled={!editMode.pemohon}
                       className={!editMode.pemohon ? 'bg-muted' : ''}
                     />

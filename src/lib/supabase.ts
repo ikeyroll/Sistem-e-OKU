@@ -8,7 +8,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // Types
 export interface Application {
   id: string;
-  ref_no: string;
+  ref_no?: string;
   no_siri?: string;
   application_type: 'baru' | 'pembaharuan';
   pemohon: {

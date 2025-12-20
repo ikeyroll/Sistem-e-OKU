@@ -314,15 +314,15 @@ export default function Dashboard() {
             latitude = coords.lat;
             longitude = coords.lon;
             matchedCount++;
-            console.log(`✅ ${app.ref_no}: Matched location`);
+            console.log(`✅ ${app.ref_no || app.id}: Matched location`);
             
             // Save to database
             updateApplication(app.id, { latitude, longitude }).catch(err => 
-              console.warn(`Failed to save coords for ${app.ref_no}:`, err)
+              console.warn(`Failed to save coords for ${app.ref_no || app.id}:`, err)
             );
           } else {
             failedCount++;
-            console.error(`❌ ${app.ref_no}: NO MATCH`);
+            console.error(`❌ ${app.ref_no || app.id}: NO MATCH`);
             console.error(`   Address: "${fullAddress}"`);
             
             // Fallback to default center

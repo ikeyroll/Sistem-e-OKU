@@ -8,6 +8,11 @@ import { Providers } from "./providers";
 export const metadata: Metadata = {
   title: "MPHS OKU Sticker Registration System",
   description: "OKU Sticker Registration & Management System for Majlis Perbandaran Hulu Selangor",
+  icons: {
+    icon: '/mphs.jpg',
+    shortcut: '/mphs.jpg',
+    apple: '/mphs.jpg',
+  },
 };
 
 export default function RootLayout({
