@@ -70,6 +70,11 @@ export const MapPicker: React.FC<MapPickerProps> = ({ address, lat, lon, onLocat
         const initialLon = lon ?? 101.6463;
         markerRef.current = L.marker([initialLat, initialLon], { draggable: true }).addTo(mapRef.current);
 
+        // Auto-trigger location callback on initial load if no coordinates provided
+        if (!lat || !lon) {
+          await handleMarkerUpdate(initialLat, initialLon);
+        }
+
         // Handle marker drag end
         markerRef.current.on('dragend', async () => {
           const pos = markerRef.current.getLatLng();

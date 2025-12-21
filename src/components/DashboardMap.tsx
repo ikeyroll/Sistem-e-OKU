@@ -213,15 +213,27 @@ export const DashboardMap: React.FC<DashboardMapProps> = ({
     markersRef.current = [];
 
     // Add markers for filtered applications with valid coordinates
-    filteredApps.forEach(app => {
+    console.log(`Adding markers for ${filteredApps.length} filtered apps...`);
+    filteredApps.forEach((app, index) => {
       // Validate coordinates are valid numbers
       const lat = Number(app.latitude);
       const lon = Number(app.longitude);
       
+      console.log(`App ${index}: ${app.id}, lat: ${lat}, lon: ${lon}, status: ${app.status}`);
+      
       // Skip if coordinates are invalid
-      if (!app.latitude || !app.longitude) return;
-      if (isNaN(lat) || isNaN(lon)) return;
-      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
+      if (!app.latitude || !app.longitude) {
+        console.log(`Skipping app ${app.id} - missing coordinates`);
+        return;
+      }
+      if (isNaN(lat) || isNaN(lon)) {
+        console.log(`Skipping app ${app.id} - invalid coordinates`);
+        return;
+      }
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        console.log(`Skipping app ${app.id} - out of bounds`);
+        return;
+      }
       
       const color = getStatusColor(app.status);
       

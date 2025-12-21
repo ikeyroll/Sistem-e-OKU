@@ -138,34 +138,24 @@ export async function filterApplicationsByStatus(status: string) {
 
 // Create new application
 export async function createApplication(application: Partial<Application>) {
-  // Filter out fields that might not exist as columns in the database
-  // and ensure they are stored in the pemohon JSONB if needed
-  const { daerah, mukim, latitude, longitude, ...rest } = application as any;
+  // Create payload with all fields including coordinates
+  const dbPayload: any = { ...application };
   
-  // Create a clean object for insertion
-  const dbPayload = { ...rest };
-  
-  // If we have geospatial data but it's not in pemohon, add it there
-  if (daerah || mukim || latitude || longitude) {
-    dbPayload.pemohon = {
-      ...dbPayload.pemohon,
-      // Only add if not already present or to update/ensure it's there
-      daerah: daerah || dbPayload.pemohon?.daerah,
-      mukim: mukim || dbPayload.pemohon?.mukim,
-      latitude: latitude || dbPayload.pemohon?.latitude,
-      longitude: longitude || dbPayload.pemohon?.longitude,
-      // Also update the address object if it exists
-      address: typeof dbPayload.pemohon?.address === 'object' ? {
-        ...dbPayload.pemohon.address,
-        daerah: daerah || dbPayload.pemohon.address?.daerah,
-        mukim: mukim || dbPayload.pemohon.address?.mukim
-      } : dbPayload.pemohon?.address
-    };
+  // Ensure coordinates are at top level for database columns
+  if (application.latitude !== undefined) {
+    dbPayload.latitude = application.latitude;
+  }
+  if (application.longitude !== undefined) {
+    dbPayload.longitude = application.longitude;
+  }
+  if (application.daerah !== undefined) {
+    dbPayload.daerah = application.daerah;
+  }
+  if (application.mukim !== undefined) {
+    dbPayload.mukim = application.mukim;
   }
 
-  // Try to insert with specific columns that we know exist
-  // We exclude daerah, mukim, latitude, longitude from the top-level insert
-  // to avoid "column does not exist" errors
+  // Insert application with coordinates
   const { data, error } = await supabase
     .from('applications')
     .insert([dbPayload])

@@ -283,53 +283,68 @@ export default function Dashboard() {
       
       for (const app of apps) {
         const pemohon = typeof app.pemohon === 'string' ? JSON.parse(app.pemohon) : app.pemohon;
+
+        const toNumberOrNull = (v: any): number | null => {
+          if (v === null || v === undefined) return null;
+          const n = typeof v === 'number' ? v : Number(v);
+          return Number.isFinite(n) ? n : null;
+        };
         
-        let latitude = app.latitude;
-        let longitude = app.longitude;
+        // Prefer top-level coordinates, but fall back to stored pemohon coordinates (older records)
+        let latitude = toNumberOrNull(app.latitude) ?? toNumberOrNull(pemohon?.latitude) ?? toNumberOrNull(pemohon?.address?.latitude);
+        let longitude = toNumberOrNull(app.longitude) ?? toNumberOrNull(pemohon?.longitude) ?? toNumberOrNull(pemohon?.address?.longitude);
         
-        // Extract coordinates from REAL address if missing
-        if (!latitude || !longitude) {
+        // If coordinates are still missing, reconstruct from address and save to database
+        if (latitude == null || longitude == null) {
           const mukim = app.mukim || pemohon?.address?.mukim || pemohon?.mukim || '';
           const daerah = app.daerah || pemohon?.address?.daerah || pemohon?.daerah || 'Hulu Selangor';
           
+          // Build full address from stored data
           const addressParts = [];
           if (pemohon?.address?.street) addressParts.push(pemohon.address.street);
           if (pemohon?.street) addressParts.push(pemohon.street);
-          if (pemohon?.alamat) addressParts.push(pemohon.alamat);
-          if (pemohon?.address?.mukim) addressParts.push(pemohon.address.mukim);
-          else if (pemohon?.mukim) addressParts.push(pemohon.mukim);
-          else if (mukim) addressParts.push(mukim);
-          if (pemohon?.address?.daerah) addressParts.push(pemohon.address.daerah);
-          else if (pemohon?.daerah) addressParts.push(pemohon.daerah);
-          else if (daerah) addressParts.push(daerah);
-          if (pemohon?.address?.poskod) addressParts.push(pemohon.address.poskod);
-          else if (pemohon?.poskod) addressParts.push(pemohon.poskod);
+          if (pemohon?.address?.full_address) addressParts.push(pemohon.address.full_address);
+          if (mukim) addressParts.push(mukim);
+          if (daerah) addressParts.push(daerah);
           addressParts.push('Selangor');
           
           const fullAddress = addressParts.filter(p => p).join(', ');
           
+          // Extract coordinates from address using location matcher
           const coords = extractCoordinatesFromAddress(fullAddress, mukim, daerah);
           
           if (coords) {
-            latitude = coords.lat;
-            longitude = coords.lon;
+            latitude = toNumberOrNull(coords.lat);
+            longitude = toNumberOrNull(coords.lon);
             matchedCount++;
-            console.log(`✅ ${app.ref_no || app.id}: Matched location`);
             
-            // Save to database
-            updateApplication(app.id, { latitude, longitude }).catch(err => 
+            // Save reconstructed coordinates to database
+            updateApplication(app.id, { 
+              latitude, 
+              longitude,
+              daerah,
+              mukim 
+            }).catch(err => 
               console.warn(`Failed to save coords for ${app.ref_no || app.id}:`, err)
             );
+            
+            console.log(`✅ ${app.ref_no || app.id}: Reconstructed coordinates from address`);
           } else {
             failedCount++;
-            console.error(`❌ ${app.ref_no || app.id}: NO MATCH`);
-            console.error(`   Address: "${fullAddress}"`);
-            
-            // Fallback to default center
-            const angle = Math.random() * 2 * Math.PI;
-            const distance = Math.random() * 0.05;
-            latitude = 3.5667 + distance * Math.cos(angle);
-            longitude = 101.6500 + distance * Math.sin(angle);
+            console.warn(`⚠️ ${app.ref_no || app.id}: Could not reconstruct coordinates`);
+          }
+        } else {
+          // Coordinates exist (either top-level or from pemohon JSON). Persist to top-level if missing.
+          matchedCount++;
+          if (toNumberOrNull(app.latitude) == null || toNumberOrNull(app.longitude) == null) {
+            updateApplication(app.id, {
+              latitude,
+              longitude,
+              daerah: app.daerah || pemohon?.address?.daerah || pemohon?.daerah || 'Hulu Selangor',
+              mukim: app.mukim || pemohon?.address?.mukim || pemohon?.mukim || ''
+            }).catch(err =>
+              console.warn(`Failed to persist pemohon coords for ${app.ref_no || app.id}:`, err)
+            );
           }
         }
         
@@ -450,11 +465,11 @@ export default function Dashboard() {
   }, [appsInSession, daerah, mukim]);
 
   // When session data is loaded the first time, pick a random successful app
-  // (with coordinates) to show as the initial location
+  // (with coordinates) to show as the initial location - but DO NOT set mukim/daerah filters
   useEffect(() => {
     if (!appsInSession || appsInSession.length === 0) return;
-    // If we already have a location or selection, don't override
-    if (latitude != null || longitude != null || daerah || mukim) return;
+    // If we already have a location, don't override
+    if (latitude != null || longitude != null) return;
 
     const withCoords = appsInSession.filter(app => app.latitude != null && app.longitude != null);
     if (withCoords.length === 0) return;
@@ -463,11 +478,11 @@ export default function Dashboard() {
     const source = successfulWithCoords.length > 0 ? successfulWithCoords : withCoords;
     const random = source[Math.floor(Math.random() * source.length)];
 
+    // Only set coordinates, NOT mukim/daerah filters (so map shows ALL apps)
     setLatitude(random.latitude ?? null);
     setLongitude(random.longitude ?? null);
-    setDaerah(random.daerah || '');
-    setMukim(random.mukim || '');
-  }, [appsInSession, latitude, longitude, daerah, mukim]);
+    // Do NOT set daerah or mukim - keep them empty to show all applications
+  }, [appsInSession, latitude, longitude]);
 
   // Update map location when mukim or daerah changes
   useEffect(() => {
