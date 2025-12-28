@@ -117,7 +117,7 @@ const translations: Translations = {
   'admin.password': { ms: 'Kata Laluan', en: 'Password' },
   'admin.applications': { ms: 'Permohonan', en: 'Applications' },
   'admin.search': { ms: 'Cari...', en: 'Search...' },
-  'admin.searchPlaceholder': { ms: 'Cth: REF12345678, MPHS/2025/001, 850215-10-5432', en: 'E.g: REF12345678, MPHS/2025/001, 850215-10-5432' },
+  'admin.searchPlaceholder': { ms: 'Cth: OKU0000001, MPHS/2025/001, 850215-10-5432', en: 'E.g: OKU0000001, MPHS/2025/001, 850215-10-5432' },
   'admin.filter': { ms: 'Tapis', en: 'Filter' },
   'admin.all': { ms: 'Semua', en: 'All' },
   'admin.export': { ms: 'Eksport Data (CSV)', en: 'Export Data (CSV)' },

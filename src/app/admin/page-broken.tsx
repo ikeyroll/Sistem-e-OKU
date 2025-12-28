@@ -299,7 +299,7 @@ export default function AdminPanel() {
                   <div className="relative">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Cth: REF12345678, MPHS/2025/001, 850215-10-5432"
+                      placeholder="Cth: OKU0000001, MPHS/2025/001, 850215-10-5432"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10"

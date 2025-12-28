@@ -252,14 +252,14 @@ export default function PembaharuanPermohonan() {
     setIsSubmitting(true);
 
     try {
-      // Check for duplicate OKU Card, Tax Account, and Car Registration (excluding current application)
+      // Check for duplicate OKU Card and Car Registration (excluding current application)
       toast.info('Memeriksa maklumat...');
       const { supabase } = await import('@/lib/supabase');
       
       const { data: existingApps, error: checkError } = await supabase
         .from('applications')
         .select('pemohon, pemohon->ic')
-        .or(`pemohon->>okuCard.eq.${formData.pemohonOKUCard},pemohon->>taxAccount.eq.${formData.pemohonTaxAccount},pemohon->>carReg.eq.${formData.pemohonCarReg}`)
+        .or(`pemohon->>okuCard.eq.${formData.pemohonOKUCard},pemohon->>carReg.eq.${formData.pemohonCarReg}`)
         .neq('pemohon->>ic', formData.pemohonIC); // Exclude current user's IC
       
       if (checkError) {
@@ -273,9 +273,6 @@ export default function PembaharuanPermohonan() {
           const pemohon = app.pemohon as any;
           if (pemohon.okuCard === formData.pemohonOKUCard) {
             duplicateFields.push('No. Kad OKU');
-          }
-          if (pemohon.taxAccount === formData.pemohonTaxAccount) {
-            duplicateFields.push('No. Akaun Cukai Taksiran');
           }
           if (pemohon.carReg === formData.pemohonCarReg) {
             duplicateFields.push('No. Pendaftaran Kereta');

@@ -193,14 +193,14 @@ export default function PendaftaranBaharu() {
     setIsSubmitting(true);
 
     try {
-      // Check for duplicate OKU Card, Tax Account, and Car Registration
+      // Check for duplicate OKU Card and Car Registration
       toast.info('Memeriksa maklumat...');
       const { supabase } = await import('@/lib/supabase');
       
       const { data: existingApps, error: checkError } = await supabase
         .from('applications')
         .select('pemohon')
-        .or(`pemohon->>okuCard.eq.${formData.pemohonOKUCard},pemohon->>taxAccount.eq.${formData.pemohonTaxAccount},pemohon->>carReg.eq.${formData.pemohonCarReg}`);
+        .or(`pemohon->>okuCard.eq.${formData.pemohonOKUCard},pemohon->>carReg.eq.${formData.pemohonCarReg}`);
       
       if (checkError) {
         console.error('Error checking duplicates:', checkError);
@@ -213,9 +213,6 @@ export default function PendaftaranBaharu() {
           const pemohon = app.pemohon as any;
           if (pemohon.okuCard === formData.pemohonOKUCard) {
             duplicateFields.push('No. Kad OKU');
-          }
-          if (pemohon.taxAccount === formData.pemohonTaxAccount) {
-            duplicateFields.push('No. Akaun Cukai Taksiran');
           }
           if (pemohon.carReg === formData.pemohonCarReg) {
             duplicateFields.push('No. Pendaftaran Kereta');

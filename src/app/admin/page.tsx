@@ -730,8 +730,9 @@ export default function AdminPanel() {
 
   // Filter applications
   const filteredApps = applications.filter((app) => {
+    const noId = generateNoId(app);
     const matchesSearch =
-      (app.ref_no?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
+      noId.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (app.no_siri?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
       app.pemohon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.pemohon.ic.includes(searchQuery);
@@ -1076,18 +1077,18 @@ export default function AdminPanel() {
               <h1 className="text-3xl font-bold mb-2">{isAdminBoss ? (language === 'en' ? 'Super Admin' : 'Super Admin') : t('admin.title')}</h1>
               <p className="text-muted-foreground">{t('admin.subtitle')}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {isAdminBoss && (
                 <>
-                  <Button onClick={() => router.push('/admin/manage-admins')} className="h-9 w-full sm:w-55">
+                  <Button onClick={() => router.push('/admin/manage-admins')} className="h-9 w-full sm:w-auto whitespace-nowrap">
                     {language === 'en' ? 'Manage Admins' : 'Urus Admin'}
                   </Button>
-                  <Button onClick={() => router.push('/admin/manage-footer')} className="h-9 w-full sm:w-55">
+                  <Button onClick={() => router.push('/admin/manage-footer')} className="h-9 w-full sm:w-auto whitespace-nowrap">
                     {language === 'en' ? 'Footer' : 'Footer'}
                   </Button>
                 </>
               )}
-              <Button variant="destructive" onClick={handleLogout} className="h-9 w-full sm:w-55">
+              <Button variant="destructive" onClick={handleLogout} className="h-9 w-full sm:w-auto whitespace-nowrap">
                 {t('admin.logout')}
               </Button>
             </div>
@@ -1101,7 +1102,7 @@ export default function AdminPanel() {
             <CardContent className="pt-6">
               {/* Search Bar */}
               <div className="mb-4">
-                <Label className="mb-2 block">{language === 'en' ? 'Search (No. Ref, No. Siri, IC, Name)' : 'Cari (No Rujukan, No Siri, IC, Nama)'}</Label>
+                <Label className="mb-2 block">{language === 'en' ? 'Search (No. Id, No. Siri, IC, Name)' : 'Cari (No Id, No Siri, IC, Nama)'}</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
