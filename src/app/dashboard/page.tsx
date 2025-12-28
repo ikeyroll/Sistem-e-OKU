@@ -190,9 +190,10 @@ export default function Dashboard() {
     totalApps: true,
     successfulApps: true,
     inProgress: true,
+    tidakLengkap: true,
     interactiveMap: true,
     monthlyTrend: true,
-    mukimChart: true,
+    okuCategoryChart: true,
     statusChart: true,
   });
   const [isAdminBoss, setIsAdminBoss] = useState(false);
@@ -320,8 +321,8 @@ export default function Dashboard() {
             
             // Save reconstructed coordinates to database
             updateApplication(app.id, { 
-              latitude, 
-              longitude,
+              latitude: latitude ?? undefined, 
+              longitude: longitude ?? undefined,
               daerah,
               mukim 
             }).catch(err => 
@@ -338,8 +339,8 @@ export default function Dashboard() {
           matchedCount++;
           if (toNumberOrNull(app.latitude) == null || toNumberOrNull(app.longitude) == null) {
             updateApplication(app.id, {
-              latitude,
-              longitude,
+              latitude: latitude === null ? undefined : latitude,
+              longitude: longitude === null ? undefined : longitude,
               daerah: app.daerah || pemohon?.address?.daerah || pemohon?.daerah || 'Hulu Selangor',
               mukim: app.mukim || pemohon?.address?.mukim || pemohon?.mukim || ''
             }).catch(err =>
@@ -647,6 +648,16 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center space-x-2">
                     <Switch
+                      id="tidak-lengkap"
+                      checked={visibility.tidakLengkap}
+                      onCheckedChange={(checked) => setVisibility(prev => ({ ...prev, tidakLengkap: checked }))}
+                    />
+                    <Label htmlFor="tidak-lengkap" className="text-sm cursor-pointer">
+                      {language === 'en' ? 'Incomplete' : 'Tidak Lengkap'}
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
                       id="interactive-map"
                       checked={visibility.interactiveMap}
                       onCheckedChange={(checked) => setVisibility(prev => ({ ...prev, interactiveMap: checked }))}
@@ -667,12 +678,12 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center space-x-2">
                     <Switch
-                      id="mukim-chart"
-                      checked={visibility.mukimChart}
-                      onCheckedChange={(checked) => setVisibility(prev => ({ ...prev, mukimChart: checked }))}
+                      id="oku-category-chart"
+                      checked={visibility.okuCategoryChart}
+                      onCheckedChange={(checked) => setVisibility(prev => ({ ...prev, okuCategoryChart: checked }))}
                     />
-                    <Label htmlFor="mukim-chart" className="text-sm cursor-pointer">
-                      {language === 'en' ? 'By Mukim' : 'Mengikut Mukim'}
+                    <Label htmlFor="oku-category-chart" className="text-sm cursor-pointer">
+                      {language === 'en' ? 'By OKU Category' : 'Mengikut Kategori OKU'}
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -691,7 +702,7 @@ export default function Dashboard() {
           )}
 
           {/* Stats Cards */}
-          {(visibility.totalApps || visibility.successfulApps || visibility.inProgress) && (
+          {(visibility.totalApps || visibility.successfulApps || visibility.inProgress || visibility.tidakLengkap) && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {visibility.totalApps && (
             <Card className="text-center py-6">
@@ -704,15 +715,7 @@ export default function Dashboard() {
             )}
 
             {visibility.successfulApps && (
-            <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow text-center py-6"
-              onClick={() => {
-                const apps = appsInSession.filter(a => ['Diluluskan', 'Sedia Diambil', 'Telah Diambil'].includes(a.status));
-                setSelectedApplicants(apps);
-                setDialogTitle(language === 'en' ? 'Successful Applications' : 'Permohonan Berjaya');
-                setShowApplicantDialog(true);
-              }}
-            >
+            <Card className="text-center py-6">
               <CardContent className="pt-6">
                 <div className="text-5xl font-bold text-green-700 mb-2">{stats?.berjaya ?? 0}</div>
                 <p className="text-sm font-medium">{language === 'en' ? 'Successful Applications' : 'Permohonan Berjaya'}</p>
@@ -722,15 +725,7 @@ export default function Dashboard() {
             )}
 
             {visibility.inProgress && (
-            <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow text-center py-6"
-              onClick={() => {
-                const apps = appsInSession.filter(a => a.status === 'Dalam Proses');
-                setSelectedApplicants(apps);
-                setDialogTitle(language === 'en' ? 'In Progress Applications' : 'Permohonan Dalam Proses');
-                setShowApplicantDialog(true);
-              }}
-            >
+            <Card className="text-center py-6">
               <CardContent className="pt-6">
                 <div className="text-5xl font-bold mb-2" style={{ color: statusColors['Dalam Proses'] }}>{stats?.byStatus.pending || 0}</div>
                 <p className="text-sm font-medium">{language === 'en' ? 'In Progress' : 'Dalam Proses'}</p>
@@ -739,22 +734,15 @@ export default function Dashboard() {
             </Card>
             )}
 
-            {/* Tidak Lengkap Card */}
-            <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow text-center py-6"
-              onClick={() => {
-                const apps = appsInSession.filter(a => a.status === 'Tidak Lengkap');
-                setSelectedApplicants(apps);
-                setDialogTitle(language === 'en' ? 'Incomplete Applications' : 'Permohonan Tidak Lengkap');
-                setShowApplicantDialog(true);
-              }}
-            >
+            {visibility.tidakLengkap && (
+            <Card className="text-center py-6">
               <CardContent className="pt-6">
                 <div className="text-5xl font-bold text-red-600 mb-2">{stats?.byStatus.rejected || 0}</div>
                 <p className="text-sm font-medium text-red-600">{language === 'en' ? 'Incomplete' : 'Tidak Lengkap'}</p>
                 <p className="text-xs text-muted-foreground mt-1">{language === 'en' ? 'Incomplete documents' : 'Dokumen tidak lengkap'}</p>
               </CardContent>
             </Card>
+            )}
           </div>
           )}
 
@@ -818,7 +806,7 @@ export default function Dashboard() {
             </Card>
             )}
 
-            {visibility.mukimChart && (
+            {visibility.okuCategoryChart && (
             <Card>
               <CardHeader>
                 <CardTitle>{language === 'en' ? 'Applications by OKU Category' : 'Permohonan Mengikut Kategori OKU'}</CardTitle>

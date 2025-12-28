@@ -297,8 +297,22 @@ export default function AdminPanel() {
         newStatus = 'Diluluskan';
         updateData = { status: newStatus, ready_date: null };
       } else if (app.status === 'Diluluskan') {
+        // When reverting from Diluluskan, we need to clear the No. Siri
+        // This releases the number so it won't cause duplicates
         newStatus = 'Dalam Proses';
-        updateData = { status: newStatus, approved_date: null, expiry_date: null, no_siri: null };
+        
+        // Store the old no_siri for logging
+        const oldNoSiri = app.no_siri;
+        
+        updateData = { 
+          status: newStatus, 
+          approved_date: null, 
+          expiry_date: null, 
+          no_siri: null 
+        };
+        
+        // Log the revert action
+        console.log(`Reverting application ${app.id} from Diluluskan to Dalam Proses. Clearing No. Siri: ${oldNoSiri}`);
       } else if (app.status === 'Tidak Berjaya') {
         newStatus = 'Dalam Proses';
         updateData = { status: newStatus, admin_notes: null };
@@ -307,7 +321,7 @@ export default function AdminPanel() {
         return;
       }
 
-      // Update in database
+      // Update in database - explicitly set no_siri to null to clear it
       const { data, error } = await supabase
         .from('applications')
         .update(updateData)
@@ -316,6 +330,11 @@ export default function AdminPanel() {
         .single();
       
       if (error) throw error;
+      
+      // Verify no_siri was cleared if reverting from Diluluskan
+      if (app.status === 'Diluluskan' && data.no_siri !== null) {
+        console.error('Warning: no_siri was not properly cleared after revert');
+      }
       
       // Update local state
       setApplications(prev => prev.map(a => 
@@ -2032,7 +2051,7 @@ export default function AdminPanel() {
 
       {/* Edit Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-[90vw] w-[90vw] h-[95vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl w-full h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>{language === 'en' ? 'Edit Application Details' : 'Kemaskini Butiran Permohonan'}</DialogTitle>
           </DialogHeader>
@@ -2138,10 +2157,12 @@ export default function AdminPanel() {
                 </div>
                 <div className="md:col-span-2">
                   <Label htmlFor="edit-street">{language === 'en' ? 'Street Address' : 'Alamat Jalan'} *</Label>
-                  <Input
+                  <Textarea
                     id="edit-street"
                     value={editFormData.street}
                     onChange={(e) => setEditFormData(prev => ({ ...prev, street: e.target.value }))}
+                    rows={3}
+                    className="resize-none"
                   />
                 </div>
               </div>

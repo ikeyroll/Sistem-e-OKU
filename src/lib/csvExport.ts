@@ -8,7 +8,7 @@ import type { Application } from './supabase';
 export function exportToCSV(applications: Application[], filename?: string): void {
   // Create CSV header (all butiran pemohon + status/tarikh/sesi)
   const headers = [
-    'No. Id',
+    'No',
     'No. Siri',
     'Jenis',
     'No. IC',
@@ -27,7 +27,7 @@ export function exportToCSV(applications: Application[], filename?: string): voi
   ];
 
   // Convert applications to CSV rows
-  const rows = applications.map(app => {
+  const rows = applications.map((app, index) => {
     // Parse pemohon if it's a string
     const pemohon = typeof app.pemohon === 'string' ? JSON.parse(app.pemohon) : app.pemohon;
     
@@ -59,7 +59,7 @@ export function exportToCSV(applications: Application[], filename?: string): voi
     const session = getSession(dateForSession || null);
     
     return [
-      app.ref_no,
+      (index + 1).toString(),
       app.no_siri || '-',
       app.application_type === 'baru' ? 'Baharu' : 'Pembaharuan',
       pemohon.ic || '-',
@@ -138,11 +138,7 @@ export function exportWithDateRange(
   // Filter applications by date range
   const filtered = applications.filter(app => {
     const submittedDate = new Date(app.submitted_date);
-    if (!(submittedDate >= dateFrom && submittedDate <= dateTo)) return false;
-    // Exclude not-complete statuses
-    const status = normalizeStatus(app.status);
-    if (status === 'Tidak Lengkap') return false;
-    return true;
+    return submittedDate >= dateFrom && submittedDate <= dateTo;
   });
 
   // Generate filename with date range
@@ -159,10 +155,6 @@ export function exportBySession(
 ): void {
   // Filter applications by session
   const filtered = applications.filter(app => {
-    // Exclude not-complete statuses
-    const status = normalizeStatus(app.status);
-    if (status === 'Tidak Lengkap') return false;
-    
     // Filter by session if specified
     if (session !== 'all') {
       // Use submitted_date to determine session (year of submission)

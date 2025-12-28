@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { FileText, Image as ImageIcon, Eye, Upload, Check, X } from 'lucide-react';
+import { FileText, Image as ImageIcon, Eye, Upload, Check, X, Trash2 } from 'lucide-react';
 
 interface DocumentPreviewProps {
   label: string;
   existingUrl?: string | null;
   onUploadNew: (file: File) => void;
+  onDelete?: () => void; // New prop to handle deletion
   newFile?: File | null;
   required?: boolean;
   accept?: string;
@@ -18,13 +19,15 @@ interface DocumentPreviewProps {
 export function DocumentPreview({ 
   label, 
   existingUrl, 
-  onUploadNew, 
+  onUploadNew,
+  onDelete,
   newFile,
   required = false,
   accept = "image/*,.pdf",
   editMode = true // Default to true for backward compatibility
 }: DocumentPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -40,6 +43,16 @@ export function DocumentPreview({
         reader.readAsDataURL(file);
       } else {
         setPreviewUrl(null);
+      }
+    }
+  };
+
+  const handleDelete = () => {
+    if (onDelete) {
+      onDelete();
+      setPreviewUrl(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
     }
   };
@@ -83,7 +96,8 @@ export function DocumentPreview({
         {/* Combined UI: Existing Document with Upload Option */}
         {existingUrl ? (
           <div className="space-y-3">
-            {/* Existing Document Display */}
+            {/* Existing Document Display - Only show if no new file uploaded */}
+            {!newFile && (
             <div className="border-2 border-green-200 rounded-lg bg-green-50/50 p-3">
               <div className="flex items-center gap-3">
                 <div className="flex-1">
@@ -124,49 +138,43 @@ export function DocumentPreview({
                 </a>
               </div>
             </div>
+            )}
 
-            {/* Upload New Option (only show if editMode) */}
-            {editMode && (
-              <div className="space-y-2">
-                <p className="text-xs text-gray-600 flex items-center gap-1">
-                  <Upload className="h-3 w-3" />
-                  Atau muat naik dokumen baharu:
-                </p>
-                <label className="block">
-                  <div className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-                    newFile 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/30'
-                  }`}>
-                    <input
-                      type="file"
-                      onChange={handleFileChange}
-                      accept={accept}
-                      capture="environment"
-                      className="hidden"
-                    />
-                    
-                    {newFile ? (
-                      <div className="space-y-2">
-                        <Check className="h-8 w-8 text-blue-600 mx-auto" />
-                        <p className="text-sm font-medium text-blue-700">{newFile.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {(newFile.size / 1024).toFixed(2)} KB
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Upload className="h-8 w-8 text-gray-400 mx-auto" />
-                        <p className="text-sm font-medium">Klik untuk upload</p>
-                        <p className="text-xs text-gray-500">PDF, JPG, PNG (Max 5MB)</p>
-                      </div>
-                    )}
+            {/* Show new file preview if uploaded (even when not in edit mode) */}
+            {newFile && (
+              <div className="border-2 border-blue-200 rounded-lg bg-blue-50/50 p-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-blue-800 block mb-1">
+                      Dokumen baharu
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-blue-700">
+                      {newFile.type.startsWith('image/') ? (
+                        <ImageIcon className="h-4 w-4" />
+                      ) : (
+                        <FileText className="h-4 w-4" />
+                      )}
+                      <span>{newFile.name}</span>
+                      <span className="text-gray-500">({(newFile.size / 1024).toFixed(2)} KB)</span>
+                    </div>
                   </div>
-                </label>
-
+                  
+                  {editMode && onDelete && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDelete}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Padam
+                    </Button>
+                  )}
+                </div>
+                
                 {/* Preview new upload */}
-                {newFile && previewUrl && (
-                  <div className="border rounded-lg p-2 bg-white">
+                {previewUrl && (
+                  <div className="border rounded-lg p-2 bg-white mt-2">
                     <img 
                       src={previewUrl} 
                       alt="Preview" 
@@ -174,6 +182,34 @@ export function DocumentPreview({
                     />
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Upload New Option (only show if editMode and no new file) */}
+            {editMode && !newFile && (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-600 flex items-center gap-1">
+                  <Upload className="h-3 w-3" />
+                  Atau muat naik dokumen baharu:
+                </p>
+                <label className="block">
+                  <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors border-gray-300 hover:border-blue-400 hover:bg-blue-50/30">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      onChange={handleFileChange}
+                      accept={accept}
+                      capture="environment"
+                      className="hidden"
+                    />
+                    
+                    <div className="space-y-2">
+                      <Upload className="h-8 w-8 text-gray-400 mx-auto" />
+                      <p className="text-sm font-medium">Klik untuk upload</p>
+                      <p className="text-xs text-gray-500">PDF, JPG, PNG (Max 5MB)</p>
+                    </div>
+                  </div>
+                </label>
               </div>
             )}
           </div>
@@ -187,6 +223,7 @@ export function DocumentPreview({
                   : 'border-gray-300 hover:border-primary hover:bg-primary/5'
               }`}>
                 <input
+                  ref={fileInputRef}
                   type="file"
                   onChange={handleFileChange}
                   accept={accept}
@@ -221,6 +258,20 @@ export function DocumentPreview({
                   className="w-full h-32 object-contain rounded"
                 />
               </div>
+            )}
+
+            {/* Delete button for new upload */}
+            {newFile && onDelete && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                className="w-full"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Padam Dokumen
+              </Button>
             )}
           </div>
         )}

@@ -171,6 +171,12 @@ export async function updateApplication(id: string, updates: Partial<Application
   const dbPayload: any = {};
   
   // Add all valid updates to payload
+  if (updates.application_type !== undefined) {
+    dbPayload.application_type = updates.application_type;
+  }
+  if (updates.submitted_date !== undefined) {
+    dbPayload.submitted_date = updates.submitted_date;
+  }
   if (updates.latitude !== undefined) {
     dbPayload.latitude = updates.latitude;
   }
@@ -179,6 +185,9 @@ export async function updateApplication(id: string, updates: Partial<Application
   }
   if (updates.pemohon !== undefined) {
     dbPayload.pemohon = updates.pemohon;
+  }
+  if (updates.tanggungan !== undefined) {
+    dbPayload.tanggungan = updates.tanggungan;
   }
   if (updates.documents !== undefined) {
     dbPayload.documents = updates.documents;

@@ -345,10 +345,12 @@ export default function PembaharuanPermohonan() {
         const { updateApplication } = await import('@/lib/api/applications');
         
         await updateApplication(existingApp.id, {
+          application_type: 'pembaharuan',
           pemohon: applicationData.pemohon,
           tanggungan: applicationData.tanggungan,
           documents: applicationData.documents,
           status: 'Dalam Proses',
+          submitted_date: new Date().toISOString(),
           latitude: applicationData.latitude,
           longitude: applicationData.longitude,
           daerah: applicationData.daerah,
@@ -803,6 +805,7 @@ export default function PembaharuanPermohonan() {
                   label="Salinan Kad Pengenalan atau Sijil Kelahiran"
                   existingUrl={existingDocuments.icCopy}
                   onUploadNew={(file) => setNewDocuments({...newDocuments, icCopy: file})}
+                  onDelete={() => setNewDocuments({...newDocuments, icCopy: null})}
                   newFile={newDocuments.icCopy}
                   required={true}
                   accept="image/*,.pdf"
@@ -813,6 +816,7 @@ export default function PembaharuanPermohonan() {
                   label="Salinan Kad OKU"
                   existingUrl={existingDocuments.okuCard}
                   onUploadNew={(file) => setNewDocuments({...newDocuments, okuCard: file})}
+                  onDelete={() => setNewDocuments({...newDocuments, okuCard: null})}
                   newFile={newDocuments.okuCard}
                   required={true}
                   accept="image/*,.pdf"
@@ -823,6 +827,7 @@ export default function PembaharuanPermohonan() {
                   label="Salinan Lesen Memandu"
                   existingUrl={existingDocuments.drivingLicense}
                   onUploadNew={(file) => setNewDocuments({...newDocuments, drivingLicense: file})}
+                  onDelete={() => setNewDocuments({...newDocuments, drivingLicense: null})}
                   newFile={newDocuments.drivingLicense}
                   required={true}
                   accept="image/*,.pdf"
@@ -833,6 +838,7 @@ export default function PembaharuanPermohonan() {
                   label="Gambar Passport Size"
                   existingUrl={existingDocuments.passportPhoto}
                   onUploadNew={(file) => setNewDocuments({...newDocuments, passportPhoto: file})}
+                  onDelete={() => setNewDocuments({...newDocuments, passportPhoto: null})}
                   newFile={newDocuments.passportPhoto}
                   required={true}
                   accept="image/*"

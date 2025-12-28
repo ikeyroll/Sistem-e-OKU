@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -63,6 +63,12 @@ export default function PendaftaranBaharu() {
     drivingLicense: null as File | null,
     passportPhoto: null as File | null,
   });
+
+  // Refs for file inputs to reset them when deleted
+  const icCopyRef = useRef<HTMLInputElement>(null);
+  const okuCardRef = useRef<HTMLInputElement>(null);
+  const drivingLicenseRef = useRef<HTMLInputElement>(null);
+  const passportPhotoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Get IC from sessionStorage
@@ -606,6 +612,7 @@ export default function PendaftaranBaharu() {
                 <div>
                   <Label htmlFor="icCopy">Satu (1) Salinan Kad Pengenalan atau Sijil Kelahiran Pemohon / Tanggungan *</Label>
                   <Input
+                    ref={icCopyRef}
                     id="icCopy"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
@@ -625,7 +632,10 @@ export default function PendaftaranBaharu() {
                         variant="ghost"
                         size="sm"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setDocuments(prev => ({ ...prev, icCopy: null }))}
+                        onClick={() => {
+                          setDocuments(prev => ({ ...prev, icCopy: null }));
+                          if (icCopyRef.current) icCopyRef.current.value = '';
+                        }}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
                         Padam Dokumen
@@ -637,6 +647,7 @@ export default function PendaftaranBaharu() {
                 <div>
                   <Label htmlFor="okuCard">Satu (1) Salinan Kad OKU Pemohon / Tanggungan *</Label>
                   <Input
+                    ref={okuCardRef}
                     id="okuCard"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
@@ -656,7 +667,10 @@ export default function PendaftaranBaharu() {
                         variant="ghost"
                         size="sm"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setDocuments(prev => ({ ...prev, okuCard: null }))}
+                        onClick={() => {
+                          setDocuments(prev => ({ ...prev, okuCard: null }));
+                          if (okuCardRef.current) okuCardRef.current.value = '';
+                        }}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
                         Padam Dokumen
@@ -668,6 +682,7 @@ export default function PendaftaranBaharu() {
                 <div>
                   <Label htmlFor="drivingLicense">Satu (1) Salinan Lesen Memandu Pemohon *</Label>
                   <Input
+                    ref={drivingLicenseRef}
                     id="drivingLicense"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
@@ -687,7 +702,10 @@ export default function PendaftaranBaharu() {
                         variant="ghost"
                         size="sm"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setDocuments(prev => ({ ...prev, drivingLicense: null }))}
+                        onClick={() => {
+                          setDocuments(prev => ({ ...prev, drivingLicense: null }));
+                          if (drivingLicenseRef.current) drivingLicenseRef.current.value = '';
+                        }}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
                         Padam Dokumen
@@ -699,6 +717,7 @@ export default function PendaftaranBaharu() {
                 <div>
                   <Label htmlFor="passportPhoto">Sekeping Gambar Ukuran Pasport OKU *</Label>
                   <Input
+                    ref={passportPhotoRef}
                     id="passportPhoto"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
@@ -718,7 +737,10 @@ export default function PendaftaranBaharu() {
                         variant="ghost"
                         size="sm"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setDocuments(prev => ({ ...prev, passportPhoto: null }))}
+                        onClick={() => {
+                          setDocuments(prev => ({ ...prev, passportPhoto: null }));
+                          if (passportPhotoRef.current) passportPhotoRef.current.value = '';
+                        }}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
                         Padam Dokumen

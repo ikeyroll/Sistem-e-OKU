@@ -19,20 +19,27 @@ export default function Footer() {
   });
 
   useEffect(() => {
-    // Get visitor count from localStorage or initialize
-    const storedCount = localStorage.getItem('visitorCount');
-    const sessionVisited = sessionStorage.getItem('hasVisited');
+    // Get visitor count from database
+    const loadVisitorCount = async () => {
+      try {
+        const { getVisitorCount, incrementVisitorCount } = await import('@/lib/api/visitor');
+        const sessionVisited = sessionStorage.getItem('hasVisited');
+        
+        // Only increment if this is a new session
+        if (!sessionVisited) {
+          const newCount = await incrementVisitorCount();
+          setVisitorCount(newCount);
+          sessionStorage.setItem('hasVisited', 'true');
+        } else {
+          const currentCount = await getVisitorCount();
+          setVisitorCount(currentCount);
+        }
+      } catch (error) {
+        console.error('Error loading visitor count:', error);
+      }
+    };
     
-    let count = storedCount ? parseInt(storedCount, 10) : 0;
-    
-    // Only increment if this is a new session
-    if (!sessionVisited) {
-      count += 1;
-      localStorage.setItem('visitorCount', count.toString());
-      sessionStorage.setItem('hasVisited', 'true');
-    }
-    
-    setVisitorCount(count);
+    loadVisitorCount();
 
     // Load footer settings from API
     fetch('/api/footer-settings')
