@@ -17,22 +17,22 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
+      <div className="container mx-auto px-4">
+        <div className="flex h-12 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3">
-            <div className="relative h-10 w-10 sm:h-12 sm:w-12">
+          <Link href="/" className="flex items-center space-x-2">
+            <div className="relative h-8 w-8">
               <Image
                 src="/mphs.jpg"
                 alt="MPHS Logo"
-                width={48}
-                height={48}
+                width={32}
+                height={32}
                 className="object-contain"
               />
             </div>
             <div className="hidden sm:block">
-              <div className="text-sm font-bold text-foreground">MPHS</div>
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs font-bold text-foreground leading-tight">MPHS</div>
+              <div className="text-[10px] text-muted-foreground leading-tight">
                 {language === 'ms' ? 'Majlis Perbandaran Hulu Selangor' : 'Hulu Selangor Municipal Council'}
               </div>
             </div>

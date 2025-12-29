@@ -124,13 +124,13 @@ export default function Home() {
       <Header />
       <main className="min-h-screen">
         {/* Hero Section with IC Validation */}
-        <section className="relative bg-gradient-to-br from-primary/10 via-background to-background py-0 -mt-4">
+        <section className="relative bg-gradient-to-br from-primary/10 via-background to-background pt-0 pb-0">
           <div className="container mx-auto px-3 sm:px-4 lg:px-4">
             <div className="max-w-2xl mx-auto">
               <div className="text-center">
                 {/* Logo e-OKU */}
-                <div className="flex justify-center mb-0">
-                  <div className="relative w-80 h-80 sm:w-96 sm:h-96">
+                <div className="flex justify-center mb-0 -mt-3">
+                  <div className="relative w-[340px] h-48 sm:w-[360px] sm:h-52">
                     <Image
                       src="/e-oku.png"
                       alt="Logo e-OKU"
@@ -142,14 +142,14 @@ export default function Home() {
                 </div>
                 
                 {/* Nama Penuh Majlis */}
-                <div className="-mt-8">
-                  <h2 className="text-lg sm:text-xl font-bold text-primary mb-0">
+                <div className="-mt-4">
+                  <h2 className="text-base sm:text-lg font-bold text-primary mb-1 leading-tight">
                     {t('hero.mphs')}
                   </h2>
                 </div>
                 
                 {/* Sistem Title */}
-                <div className="border-t border-b border-primary/20 py-0.5 mt-0.5">
+                <div className="border-t border-b border-primary/20 py-0.5 mt-1">
                   <h1 className="text-xl sm:text-2xl font-bold tracking-tight mb-0.5">
                     {t('hero.systemTitle')}
                   </h1>

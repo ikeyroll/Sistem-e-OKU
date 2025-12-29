@@ -237,25 +237,29 @@ export default function SemakIC() {
   return (
     <>
       <Header />
-      <main className="min-h-screen py-6 bg-gradient-to-br from-primary/5 to-background">
+<main className="h-screen overflow-hidden bg-gradient-to-br from-primary/5 to-background">
         <div className="container mx-auto px-4 max-w-3xl">
           {/* Header - Compact without logo */}
-          <div className="text-center mb-4">
-            <h1 className="text-lg sm:text-xl font-semibold mb-1">Sistem e-OKU</h1>
-            <p className="text-muted-foreground text-xs sm:text-sm">
-              Daftar pelekat kenderaan OKU secara dalam talian dengan mudah dan cepat
+          <div className="text-center mb-1">
+            <h1 className="text-base sm:text-lg font-semibold leading-tight">
+              Sistem e-OKU
+            </h1>
+            <p className="text-muted-foreground text-[11px] leading-tight">
+              Daftar pelekat kenderaan OKU secara dalam talian
             </p>
           </div>
 
+
           {/* Search Card */}
           <Card className="shadow-lg">
-            <CardHeader className="text-center pb-3">
+            <CardHeader className="text-center pb-2">
               <CardTitle className="text-xl">{language === 'en' ? 'Please Enter IC Number' : 'Sila Masukkan No Kad Pengenalan'}</CardTitle>
               <CardDescription className="text-sm">{language === 'en' ? 'To check your registration status' : 'Untuk menyemak status pendaftaran anda'}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-2 max-h-[75vh] overflow-y-auto">
+
               {/* IC Input */}
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Input
                   placeholder={language === 'en' ? 'Example: 020516-14-1516' : 'Contoh: 020516-14-1516'}
                   value={icNumber}
@@ -297,11 +301,11 @@ export default function SemakIC() {
 
               {/* Result */}
               {result && result.found && (
-                <div className="space-y-4 pt-4">
+                <div className="space-y-2 pt-2">
                   
                   {/* Status Messages Below Search Button */}
                   {(result.status === 'Tidak Lengkap' || result.status === 'Tidak Berjaya') && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="p-2 bg-red-50 border border-red-200 rounded-lg">
                       <p className="text-red-800 text-center font-semibold text-sm">
                         {language === 'en' ? 'Application Incomplete' : 'Permohonan Tidak Lengkap'}
                       </p>
@@ -309,7 +313,7 @@ export default function SemakIC() {
                   )}
 
                   {result.status === 'Diluluskan' && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="p-2 bg-green-50 border border-green-200 rounded-lg">
                       <p className="text-green-800 text-center font-semibold mb-1 text-sm">
                         <CheckCircle className="inline h-4 w-4 mr-2" />
                         {language === 'en' ? 'Application Approved' : 'Permohonan Diluluskan'}
@@ -321,7 +325,7 @@ export default function SemakIC() {
                   )}
 
                   {result.status === 'Dalam Proses' && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
                       <p className="text-blue-800 text-center font-semibold text-sm">
                         <Clock className="inline h-4 w-4 mr-2" />
                         {language === 'en' ? 'Application In Progress' : 'Permohonan Sedang Diproses'}
@@ -333,7 +337,7 @@ export default function SemakIC() {
                   )}
 
                   {result.status === 'Sedia Diambil' && (
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                       <p className="text-green-800 text-center mb-2 font-semibold">
                         Pelekat anda sudah sedia untuk diambil di Pejabat MPHS
                       </p>
@@ -344,7 +348,7 @@ export default function SemakIC() {
                   )}
 
                   {result.status === 'Telah Diambil' && (
-                    <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
                       <p className="text-purple-800 text-center">
                         <CheckCircle className="inline h-5 w-5 mr-2" />
                         Pelekat telah diambil. Terima kasih!
@@ -354,15 +358,15 @@ export default function SemakIC() {
                   
                   {/* No Siri (if available) */}
                   {result.noSiri && (
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-center">
                       <p className="text-sm text-green-800 mb-1">No. Siri Pelekat</p>
                       <p className="text-2xl font-bold text-green-900 font-mono">{result.noSiri}</p>
                     </div>
                   )}
 
                   {/* User Info */}
-                  <div className="border rounded-lg p-3 space-y-2">
-                    <div className="flex items-center gap-2 pb-2 border-b">
+                  <div className="border rounded-lg p-2 space-y-1">
+                    <div className="flex items-center gap-2 pb-1 border-b">
                       <User className="h-4 w-4 text-primary" />
                       <h3 className="font-semibold text-sm">{language === 'en' ? 'Applicant Information' : 'Maklumat Pemohon'}</h3>
                     </div>
@@ -394,17 +398,17 @@ export default function SemakIC() {
                     const nearExpiry = !isExpired && timeRemaining.days <= 60; // Within 2 months
                     
                     return (
-                      <div className={`p-6 border-2 rounded-lg ${
+                      <div className={`p-3 border-2 rounded-lg ${
                         isExpired 
                           ? 'bg-red-50 border-red-300' 
                           : nearExpiry
                           ? 'bg-amber-50 border-amber-300'
                           : 'bg-green-50 border-green-300'
                       }`}>
-                        <div className="space-y-4">
+                        <div className="space-y-2">
                           {/* Header */}
-                          <div className="text-center border-b pb-3">
-                            <div className="flex items-center justify-center gap-2 mb-2">
+                          <div className="text-center border-b pb-1">
+                            <div className="flex items-center justify-center gap-2 mb-1">
                               <Calendar className={`h-6 w-6 ${
                                 isExpired ? 'text-red-600' : nearExpiry ? 'text-amber-600' : 'text-green-600'
                               }`} />
@@ -417,9 +421,9 @@ export default function SemakIC() {
                           </div>
 
                           {/* Dates Info */}
-                          <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="grid grid-cols-2 gap-2 text-sm">
                             {result.approvedDate && (
-                              <div className="text-center p-3 bg-white/50 rounded">
+                              <div className="text-center p-2 bg-white/50 rounded">
                                 <p className="text-muted-foreground mb-1">Tarikh Kelulusan</p>
                                 <p className="font-semibold">{result.approvedDate}</p>
                               </div>
@@ -433,14 +437,14 @@ export default function SemakIC() {
                           </div>
 
                           {/* Time Remaining */}
-                          <div className={`text-center p-4 rounded-lg ${
+                          <div className={`text-center p-2 rounded-lg ${
                             isExpired 
                               ? 'bg-red-100' 
                               : nearExpiry 
                               ? 'bg-amber-100' 
                               : 'bg-green-100'
                           }`}>
-                            <div className="flex items-center justify-center gap-2 mb-2">
+                            <div className="flex items-center justify-center gap-2 mb-1">
                               <Clock className={`h-5 w-5 ${
                                 isExpired ? 'text-red-700' : nearExpiry ? 'text-amber-700' : 'text-green-700'
                               }`} />
@@ -458,7 +462,7 @@ export default function SemakIC() {
                           </div>
 
                           {/* Status Message */}
-                          <div className={`text-center p-3 rounded ${
+                          <div className={`text-center p-2 rounded ${
                             isExpired 
                               ? 'bg-red-100 text-red-800' 
                               : nearExpiry 
@@ -481,7 +485,7 @@ export default function SemakIC() {
               )}
 
               {/* Action Buttons Based on Status */}
-              <div className="pt-4 border-t space-y-3">
+              <div className="pt-2 border-t space-y-2">
                 {result ? (
                   // User ada rekod - tunjuk button mengikut status
                   <>
