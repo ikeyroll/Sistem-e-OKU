@@ -77,7 +77,9 @@ export default function SemakIC() {
         status: app.status,
         applicationType: app.application_type,
         submittedDate: new Date(app.submitted_date).toLocaleDateString('ms-MY'),
+        submittedDateRaw: app.submitted_date,
         approvedDate: app.approved_date ? new Date(app.approved_date).toLocaleDateString('ms-MY') : undefined,
+        approvedDateRaw: app.approved_date,
         // For expiry date, we'll show 31/12/YYYY where YYYY is 2 years from approval year
         expiryDate: app.expiry_date,
         // Format as 31/12/YYYY (2 years from approval year)
@@ -90,7 +92,7 @@ export default function SemakIC() {
         isExpired: (() => {
           if (!app.approved_date) return false;
           const approvalYear = new Date(app.approved_date).getFullYear();
-          const expiryDate = new Date(approvalYear + 2, 11, 31); // December 31st of second year
+          const expiryDate = new Date(approvalYear + 2, 11, 31, 23, 59, 59); // End of December 31st of second year
           return new Date() > expiryDate;
         })(),
         adminNotes: app.admin_notes,
@@ -109,23 +111,27 @@ export default function SemakIC() {
   const calculateTimeRemaining = (expiryDate: string, approvedDate?: string) => {
     try {
       const now = new Date();
+      let expiry: Date;
       
-      // First, try to use the provided expiry date if it's valid
-      let expiry = new Date(expiryDate);
-      
-      // If expiry date is invalid, try to calculate it from approved date
-      if (isNaN(expiry.getTime()) && approvedDate) {
+      // Always calculate expiry from approval date if available (more reliable than database expiry_date)
+      if (approvedDate) {
         const approvalDate = new Date(approvedDate);
         if (!isNaN(approvalDate.getTime())) {
           const approvalYear = approvalDate.getFullYear();
-          expiry = new Date(approvalYear + 2, 11, 31); // Dec 31 of second year
+          expiry = new Date(approvalYear + 2, 11, 31, 23, 59, 59); // Dec 31 of second year at end of day
+        } else {
+          // Fallback to provided expiry date
+          expiry = new Date(expiryDate);
         }
+      } else {
+        // No approval date, use provided expiry date
+        expiry = new Date(expiryDate);
       }
       
       // If we still don't have a valid expiry date, use current date + 2 years as default
       if (isNaN(expiry.getTime())) {
         const currentYear = now.getFullYear();
-        expiry = new Date(currentYear + 2, 11, 31); // Default to 2 years from now
+        expiry = new Date(currentYear + 2, 11, 31, 23, 59, 59); // Default to 2 years from now
       }
       
       const diffTime = expiry.getTime() - now.getTime();
@@ -133,11 +139,23 @@ export default function SemakIC() {
       
       // EXPIRED: Show years, months, days since expiry
       if (diffDays < 0) {
-        const absDays = Math.abs(diffDays);
-        const years = Math.floor(absDays / 365);
-        const remainingDaysAfterYears = absDays % 365;
-        const months = Math.floor(remainingDaysAfterYears / 30);
-        const days = remainingDaysAfterYears % 30;
+        // Calculate exact years, months, and days using proper date arithmetic
+        let years = now.getFullYear() - expiry.getFullYear();
+        let months = now.getMonth() - expiry.getMonth();
+        let days = now.getDate() - expiry.getDate();
+        
+        // Adjust for negative days
+        if (days < 0) {
+          months--;
+          const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+          days += prevMonth.getDate();
+        }
+        
+        // Adjust for negative months
+        if (months < 0) {
+          years--;
+          months += 12;
+        }
         
         let text = '';
         if (years > 0) text += `${years} tahun `;
@@ -371,7 +389,7 @@ export default function SemakIC() {
 
                   {/* Enhanced Expiry Date Display */}
                   {(result.status === 'Diluluskan' || result.status === 'Sedia Diambil' || result.status === 'Telah Diambil') && result.expiryDate && (() => {
-                    const timeRemaining = calculateTimeRemaining(result.expiryDate, result.approvedDate);
+                    const timeRemaining = calculateTimeRemaining(result.expiryDate, result.approvedDateRaw);
                     const isExpired = timeRemaining.expired;
                     const nearExpiry = !isExpired && timeRemaining.days <= 60; // Within 2 months
                     
@@ -469,8 +487,8 @@ export default function SemakIC() {
                   <>
                     
                     {(result.status === 'Diluluskan' || result.status === 'Sedia Diambil' || result.status === 'Telah Diambil') && result.expiryDate && (() => {
-                      const timeRemaining = calculateTimeRemaining(result.expiryDate, result.approvedDate);
-                      const canRenewNow = canRenew(result.expiryDate, result.approvedDate);
+                      const timeRemaining = calculateTimeRemaining(result.expiryDate, result.approvedDateRaw);
+                      const canRenewNow = canRenew(result.expiryDate, result.approvedDateRaw);
                       
                       return canRenewNow ? (
                         <Button 
