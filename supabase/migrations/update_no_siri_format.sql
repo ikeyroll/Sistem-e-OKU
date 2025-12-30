@@ -48,8 +48,8 @@ BEGIN
     AND approved_date >= (p_year || '-01-01')::date
     AND approved_date < ((p_year + 1) || '-01-01')::date;
   
-  -- Format: PREFIX/YEAR/NUMBER (e.g., MPHS/2025/0001)
-  v_no_siri := v_prefix || '/' || p_year::text || '/' || LPAD(v_sequence::text, 4, '0');
+  -- Format: PREFIX/YEAR/NUMBER (e.g., MPHS/2025/001)
+  v_no_siri := v_prefix || '/' || p_year::text || '/' || LPAD(v_sequence::text, 3, '0');
   
   RETURN v_no_siri;
 END;
