@@ -616,7 +616,6 @@ export default function PendaftaranBaharu() {
                     id="icCopy"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
-                    capture="environment"
                     onChange={(e) => handleFileChange(e, 'icCopy')}
                     required={!documents.icCopy}
                     className="mt-2"
@@ -651,7 +650,6 @@ export default function PendaftaranBaharu() {
                     id="okuCard"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
-                    capture="environment"
                     onChange={(e) => handleFileChange(e, 'okuCard')}
                     required={!documents.okuCard}
                     className="mt-2"
@@ -686,7 +684,6 @@ export default function PendaftaranBaharu() {
                     id="drivingLicense"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
-                    capture="environment"
                     onChange={(e) => handleFileChange(e, 'drivingLicense')}
                     required={!documents.drivingLicense}
                     className="mt-2"
@@ -721,7 +718,6 @@ export default function PendaftaranBaharu() {
                     id="passportPhoto"
                     type="file"
                     accept="image/*,.pdf,.png,.jpg,.jpeg"
-                    capture="environment"
                     onChange={(e) => handleFileChange(e, 'passportPhoto')}
                     required={!documents.passportPhoto}
                     className="mt-2"

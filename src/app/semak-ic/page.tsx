@@ -237,7 +237,7 @@ export default function SemakIC() {
   return (
     <>
       <Header />
-<main className="h-screen overflow-hidden bg-gradient-to-br from-primary/5 to-background">
+<main className="min-h-screen bg-gradient-to-br from-primary/5 to-background pb-4">
         <div className="container mx-auto px-4 max-w-3xl">
           {/* Header - Compact without logo */}
           <div className="text-center mb-1">
@@ -256,7 +256,7 @@ export default function SemakIC() {
               <CardTitle className="text-xl">{language === 'en' ? 'Please Enter IC Number' : 'Sila Masukkan No Kad Pengenalan'}</CardTitle>
               <CardDescription className="text-sm">{language === 'en' ? 'To check your registration status' : 'Untuk menyemak status pendaftaran anda'}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2 max-h-[75vh] overflow-y-auto">
+            <CardContent className="space-y-2">
 
               {/* IC Input */}
               <div className="space-y-1">

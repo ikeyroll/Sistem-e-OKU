@@ -199,7 +199,6 @@ export function DocumentPreview({
                       type="file"
                       onChange={handleFileChange}
                       accept={accept}
-                      capture="environment"
                       className="hidden"
                     />
                     
@@ -227,7 +226,6 @@ export function DocumentPreview({
                   type="file"
                   onChange={handleFileChange}
                   accept={accept}
-                  capture="environment"
                   className="hidden"
                 />
                 
